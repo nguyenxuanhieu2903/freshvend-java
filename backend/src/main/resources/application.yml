@@ -16,3 +16,14 @@ management:
     web:
       exposure:
         include: health
+
+app:
+  payment:
+    demo-mode: ${PAYMENT_DEMO_MODE:true}
+    provider: sepay
+    sepay:
+      api-key: ${SEPAY_API_KEY:}
+      bank-bin: ${SEPAY_BANK_BIN:970422}
+      bank-name: ${SEPAY_BANK_NAME:MBBank}
+      account-number: ${SEPAY_ACCOUNT_NUMBER:DEMO123456}
+      account-name: ${SEPAY_ACCOUNT_NAME:DEMO SMART VENDING}
