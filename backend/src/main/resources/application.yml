@@ -16,3 +16,18 @@ management:
     web:
       exposure:
         include: health
+
+app:
+  mqtt:
+    enabled: ${MQTT_ENABLED:true}
+    broker-url: ${MQTT_BROKER_URL:ssl://broker.emqx.io:8883}
+    client-id: ${MQTT_CLIENT_ID:freshvend-backend-vm001}
+    username: ${MQTT_USERNAME:backend-vm001}
+    password: ${MQTT_PASSWORD:}
+    qos: 1
+    completion-timeout-ms: 5000
+    topics:
+      commands: ${MQTT_COMMANDS_TOPIC:vending/{machineId}/commands}
+      events: ${MQTT_EVENTS_TOPIC:vending/{machineId}/events}
+      ack: ${MQTT_ACK_TOPIC:vending/{machineId}/events/ack}
+      heartbeat: ${MQTT_HEARTBEAT_TOPIC:vending/{machineId}/heartbeat}
