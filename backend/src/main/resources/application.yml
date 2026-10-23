@@ -18,16 +18,12 @@ management:
         include: health
 
 app:
-  mqtt:
-    enabled: ${MQTT_ENABLED:true}
-    broker-url: ${MQTT_BROKER_URL:ssl://broker.emqx.io:8883}
-    client-id: ${MQTT_CLIENT_ID:freshvend-backend-vm001}
-    username: ${MQTT_USERNAME:backend-vm001}
-    password: ${MQTT_PASSWORD:}
-    qos: 1
-    completion-timeout-ms: 5000
-    topics:
-      commands: ${MQTT_COMMANDS_TOPIC:vending/{machineId}/commands}
-      events: ${MQTT_EVENTS_TOPIC:vending/{machineId}/events}
-      ack: ${MQTT_ACK_TOPIC:vending/{machineId}/events/ack}
-      heartbeat: ${MQTT_HEARTBEAT_TOPIC:vending/{machineId}/heartbeat}
+  payment:
+    demo-mode: ${PAYMENT_DEMO_MODE:true}
+    provider: sepay
+    sepay:
+      api-key: ${SEPAY_API_KEY:}
+      bank-bin: ${SEPAY_BANK_BIN:970422}
+      bank-name: ${SEPAY_BANK_NAME:MBBank}
+      account-number: ${SEPAY_ACCOUNT_NUMBER:DEMO123456}
+      account-name: ${SEPAY_ACCOUNT_NAME:DEMO SMART VENDING}
