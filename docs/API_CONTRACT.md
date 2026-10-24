@@ -162,3 +162,54 @@ Access-Control-Max-Age: 3600
 - Không có cơ chế tự gia hạn token trong MVP; admin phải đăng nhập lại.
 
 ---
+## 2. Endpoint công khai — Máy và sản phẩm
+
+### 2.1. `GET /api/v1/machines/{machineId}`
+
+**Mục đích:** Kiểm tra máy có tồn tại và đang hoạt động không. Frontend gọi khi khách hàng mở trang từ QR code.
+
+**Phân quyền:** Công khai (không cần xác thực).
+
+**Path parameters:**
+
+| Tham số | Kiểu | Mô tả |
+|---|---|---|
+| `machineId` | string | ID công khai của máy, ví dụ `VM001` |
+
+**Response 200 OK:**
+
+```json
+{
+  "data": {
+    "machineId": "VM001",
+    "name": "Máy bán hàng tầng 1",
+    "status": "ACTIVE",
+    "message": null
+  }
+}
+```
+
+**Giá trị `status`:**
+
+| Giá trị | Ý nghĩa |
+|---|---|
+| `ACTIVE` | Máy đang hoạt động bình thường |
+| `INACTIVE` | Máy tạm ngừng — không cho phép đặt hàng |
+| `MAINTENANCE` | Máy đang bảo trì |
+
+**Response 404 Not Found:**
+
+```json
+{
+  "error": {
+    "code": "MACHINE_NOT_FOUND",
+    "message": "Máy bán hàng không tồn tại.",
+    "timestamp": "2026-10-18T10:30:00Z",
+    "requestId": "550e8400-e29b-41d4-a716-446655440000"
+  }
+}
+```
+
+> **Quy tắc:** `machineId` không phải secret và không cấp quyền quản trị. Backend phải xác nhận machine tồn tại **và** active ở mọi bước xử lý đơn hàng, không chỉ ở bước này.
+
+---
