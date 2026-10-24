@@ -213,3 +213,70 @@ Access-Control-Max-Age: 3600
 > **Quy tắc:** `machineId` không phải secret và không cấp quyền quản trị. Backend phải xác nhận machine tồn tại **và** active ở mọi bước xử lý đơn hàng, không chỉ ở bước này.
 
 ---
+
+### 2.2. `GET /api/v1/machines/{machineId}/products`
+
+**Mục đích:** Lấy danh sách sản phẩm đang được bán tại máy.
+
+**Phân quyền:** Công khai.
+
+**Response 200 OK:**
+
+```json
+{
+  "data": {
+    "machineId": "VM001",
+    "products": [
+      {
+        "productId": "550e8400-e29b-41d4-a716-446655440001",
+        "name": "Nước suối Aqua 500ml",
+        "description": "Nước uống tinh khiết Aqua chai 500ml",
+        "imageUrl": "https://example.com/images/aqua-500ml.jpg",
+        "priceVnd": 8000,
+        "slotNumber": 1,
+        "stockQuantity": 5,
+        "available": true
+      },
+      {
+        "productId": "550e8400-e29b-41d4-a716-446655440002",
+        "name": "Snack Lay's vị tự nhiên",
+        "description": null,
+        "imageUrl": null,
+        "priceVnd": 15000,
+        "slotNumber": 2,
+        "stockQuantity": 3,
+        "available": true
+      },
+      {
+        "productId": "550e8400-e29b-41d4-a716-446655440003",
+        "name": "Kẹo cao su Doublemint",
+        "description": null,
+        "imageUrl": null,
+        "priceVnd": 5000,
+        "slotNumber": 3,
+        "stockQuantity": 0,
+        "available": false
+      }
+    ]
+  }
+}
+```
+
+**Các trường sản phẩm:**
+
+| Trường | Kiểu | Bắt buộc | Mô tả |
+|---|---|---|---|
+| `productId` | string (UUID) | ✅ | ID duy nhất của sản phẩm |
+| `name` | string | ✅ | Tên sản phẩm |
+| `description` | string \| null | ❌ | Mô tả ngắn |
+| `imageUrl` | string \| null | ❌ | URL ảnh sản phẩm |
+| `priceVnd` | integer | ✅ | Giá VND (số nguyên, không phải số thực) |
+| `slotNumber` | integer (1-3) | ✅ | Số khay vật lý, dùng để hiển thị UI. Khách hàng không được gửi giá trị này lên để điều khiển slot. |
+| `stockQuantity` | integer | ✅ | Tồn kho theo database (không phải cảm biến vật lý — xem PRODUCT_SPEC.md §9.4) |
+| `available` | boolean | ✅ | `true` nếu sản phẩm đang active và `stockQuantity > 0` |
+
+> **Quy tắc quan trọng về `slotNumber`:** Trường này được trả về để Frontend có thể hiển thị thông tin "Khay số X". Tuy nhiên, khi khách hàng tạo đơn hàng, họ chỉ gửi `productId` — Backend tự xác định slot từ cấu hình sản phẩm đáng tin cậy trong database. Backend không bao giờ tin `slotNumber` do client gửi lên.
+
+> **Cache:** Frontend có thể cache catalog để hiển thị, nhưng backend phải luôn kiểm tra lại giá và tồn kho khi tạo đơn hàng.
+
+---
