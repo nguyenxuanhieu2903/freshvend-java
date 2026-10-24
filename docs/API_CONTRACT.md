@@ -1,13 +1,164 @@
-# API contract
+# API Contract — Vending Machine Prototype
 
-Base path: `/api`
+**Phiên bản:** 1.1<br>
+**Trạng thái:** Draft — Cập nhật sau rà soát Giai đoạn 1 (chưa triển khai)<br>
+**Nguồn yêu cầu:** `PRODUCT_SPEC.md §11`
+**Thay đổi so với v1.0:** JWT cookie design (F6), chuẩn hóa order response (F1), auth endpoints tách riêng (F2), message trong status (F3), MACHINE_INACTIVE (F4), admin order detail schema (F5), slotNumber clarification (F8)
+**Cập nhật lần cuối:** 2026-10-18
 
-## Endpoints (planned)
+---
 
-- `GET /machines` — list registered machines.
-- `GET /machines/{machineId}/inventory` — read current inventory.
-- `POST /reservations` — reserve an available product.
-- `GET /reservations/{reservationId}` — read reservation status.
+## 1. Quy ước chung
 
-Use JSON request and response bodies. Return standard HTTP status codes and
-include an error message in JSON responses for failed requests.
+### 1.1. Base URL
+
+| Môi trường | URL |
+|---|---|
+| Local development | `http://localhost:8080` |
+| Production | `https://<backend-domain>` (TBD — xác nhận sau khi chọn hosting) |
+
+### 1.2. Định dạng dữ liệu
+
+- **Content-Type:** `application/json` cho tất cả request/response body.
+- **Encoding:** UTF-8.
+- **Thời gian:** ISO 8601 với timezone UTC, ví dụ `2026-10-18T10:30:00Z`.
+- **Tiền tệ:** Số nguyên VND (không dùng số thực / float). Ví dụ: `15000` = 15.000 đồng.
+- **ID công khai:** UUID v4 dạng chuỗi, ví dụ `"550e8400-e29b-41d4-a716-446655440000"`.
+
+### 1.3. Cấu trúc lỗi chuẩn
+
+Tất cả lỗi trả về cùng cấu trúc JSON:
+
+```json
+{
+  "error": {
+    "code": "MACHINE_NOT_FOUND",
+    "message": "Máy bán hàng không tồn tại hoặc đang tạm ngừng hoạt động.",
+    "timestamp": "2026-10-18T10:30:00Z",
+    "requestId": "550e8400-e29b-41d4-a716-446655440000"
+  }
+}
+```
+
+| Trường | Kiểu | Mô tả |
+|---|---|---|
+| `error.code` | string | Mã lỗi dạng SCREAMING_SNAKE_CASE để frontend xử lý logic |
+| `error.message` | string | Thông báo lỗi thân thiện, an toàn để hiển thị cho người dùng |
+| `error.timestamp` | string (ISO 8601) | Thời điểm lỗi xảy ra |
+| `error.requestId` | string (UUID) | ID request để trace log (nếu có) |
+
+> **Quy tắc bảo mật:** Không bao giờ trả về stack trace, tên table/column database, địa chỉ broker MQTT, thông tin kết nối nội bộ, JWT payload hay bất kỳ thông tin kỹ thuật nhạy cảm nào trong response lỗi cho client.
+
+### 1.4. HTTP Status Code
+
+| Code | Ý nghĩa | Khi nào dùng |
+|---|---|---|
+| `200 OK` | Thành công | GET, PUT, PATCH thành công |
+| `201 Created` | Tạo mới thành công | POST tạo order |
+| `204 No Content` | Thành công, không có body | Logout |
+| `400 Bad Request` | Dữ liệu đầu vào không hợp lệ | Thiếu field, sai kiểu, vi phạm quy tắc nghiệp vụ |
+| `401 Unauthorized` | Chưa xác thực hoặc token hết hạn | Truy cập endpoint admin mà chưa đăng nhập |
+| `403 Forbidden` | Không có quyền | Đã xác thực nhưng không đủ quyền |
+| `404 Not Found` | Không tìm thấy tài nguyên | Machine, product, order không tồn tại |
+| `409 Conflict` | Xung đột trạng thái | Sản phẩm đã hết hàng |
+| `422 Unprocessable Entity` | Dữ liệu hợp lệ nhưng vi phạm nghiệp vụ | Machine inactive, số lượng không hợp lệ |
+| `429 Too Many Requests` | Vượt rate limit | Gọi API quá nhiều lần |
+| `500 Internal Server Error` | Lỗi server | Lỗi nội bộ không kiểm soát được |
+
+### 1.5. Xác thực Admin — JWT trong HttpOnly Cookie
+
+Admin authentication sử dụng JWT được lưu trong cookie HttpOnly. Token không bao giờ xuất hiện trong response body, localStorage hay bất kỳ nơi nào JavaScript có thể đọc được.
+
+#### 1.5.1. Thuộc tính cookie
+
+| Thuộc tính | Giá trị Production | Giá trị Local Dev | Lý do |
+|---|---|---|---|
+| `HttpOnly` | `true` | `true` | JavaScript không đọc được, ngăn XSS đánh cắp token |
+| `Secure` | `true` | `false` | Chỉ gửi qua HTTPS (bỏ trong local HTTP) |
+| `SameSite` | `None` | `Lax` | `None` bắt buộc cho cross-origin SPA + API trên domain khác nhau |
+| `Path` | `/api/v1` | `/api/v1` | Chỉ gửi cho API, không gửi kèm request tĩnh |
+| `Max-Age` | `28800` (8 giờ) | `28800` | Không dùng refresh token trong MVP |
+| Tên cookie | `admin_access_token` | `admin_access_token` | |
+
+> **Tại sao `SameSite=None` trong production?** Frontend (Vercel) và Backend (hosting riêng) sẽ ở hai domain khác nhau. Trình duyệt chỉ gửi cookie trong cross-origin fetch request khi `SameSite=None; Secure`. Nếu dùng `SameSite=Strict` hoặc `SameSite=Lax`, cookie sẽ không được gửi và admin không đăng nhập được từ SPA.
+
+> **`SameSite=None` và CSRF:** Vì `SameSite=None` không ngăn được cross-site request, cần thêm cơ chế CSRF bổ sung (xem §1.5.3).
+
+#### 1.5.2. JWT Payload
+
+```json
+{
+  "sub": "admin",
+  "tokenVersion": 1,
+  "iat": 1729224000,
+  "exp": 1729252800
+}
+```
+
+| Trường | Mô tả |
+|---|---|
+| `sub` | Username của admin |
+| `tokenVersion` | Phiên bản token, dùng để vô hiệu hóa khi logout — phải khớp với giá trị trong database |
+| `iat` | Thời điểm phát hành (issued at) |
+| `exp` | Thời điểm hết hạn (8 giờ sau `iat`) |
+
+> **Không hoàn toàn stateless:** Backend phải kiểm tra `tokenVersion` trong database khi xác thực token. Nếu admin logout, `tokenVersion` tăng lên trong DB; token cũ tuy chưa hết hạn cũng bị từ chối. Đây là đánh đổi cần thiết giữa tính stateless và khả năng thu hồi token.
+
+#### 1.5.3. Bảo vệ CSRF và cơ chế Defense-in-Depth
+
+Vì môi trường production yêu cầu `SameSite=None` để SPA (trên domain riêng như Vercel) gửi được cookie sang Backend API, hệ thống phải triển khai cơ chế phòng vệ CSRF đa tầng (Defense-in-Depth):
+
+> **Nguyên tắc cốt lõi:** Tuyệt đối không coi `X-Requested-With` hoặc CORS riêng lẻ là biện pháp bảo vệ đầy đủ:
+> - Nếu chỉ dùng CORS: CORS là chính sách do trình duyệt thi hành và chỉ kích hoạt đối với các request không phải "Simple Request". Các thẻ HTML truyền thống (`<form>`, `<iframe>`) có thể gửi POST request mà không hề kích hoạt CORS preflight.
+> - Nếu chỉ dùng `X-Requested-With`: Header này có thể bị giả mạo bởi các non-browser client hoặc nếu xuất hiện lỗ hổng XSS trên các subdomain liên quan.
+> - Vì vậy, an toàn CSRF bắt buộc phải dựa trên sự kết hợp đồng thời của 4 chốt chặn: Cookie flags (`SameSite=None; Secure; HttpOnly`), Custom Header (`X-Requested-With`), Strict CORS Whitelist, và Server-side Origin/Referer Validation.
+
+1. **Bắt buộc Custom Header `X-Requested-With`:**
+   Mọi mutating request (`POST`, `PUT`, `PATCH`, `DELETE`) đến admin endpoints bắt buộc phải kèm header:
+   ```
+   X-Requested-With: XMLHttpRequest
+   ```
+   - **Chống Form-based CSRF:** Các cuộc tấn công CSRF truyền thống sử dụng thẻ HTML (`<form method="POST">`, `<iframe src="...">`) chỉ có thể gửi "simple requests" và **không thể** tự ý chèn custom HTTP header như `X-Requested-With`. Khi thiếu header này, Backend lập tức từ chối với `403 Forbidden` (`error.code: "CSRF_HEADER_MISSING"`).
+   - **Kích hoạt CORS Preflight:** Khi một trang web thứ ba dùng JavaScript (`fetch` hoặc `axios`) cố tình đính kèm header `X-Requested-With`, trình duyệt bắt buộc phải gửi một HTTP preflight request (`OPTIONS`) trước khi gửi request thật.
+
+2. **CORS Whitelist nghiêm ngặt:**
+   Trình duyệt tự động đính kèm header `Origin: https://attacker.com` vào preflight `OPTIONS` request. Backend chỉ cho phép origin nằm trong danh sách whitelist tin cậy (Frontend domain). Khi origin không khớp, preflight thất bại và trình duyệt chặn không cho gửi request mutating thật sự sang backend.
+
+3. **Thuật toán kiểm tra `Origin` và `Referer` trực tiếp trên Server (Server-side Validation):**
+   Để độc lập bảo vệ hệ thống trước mọi sai sót cấu hình trình duyệt, Security Filter của Backend xử lý theo thuật toán nghiêm ngặt sau cho tất cả các mutating request (`POST`, `PUT`, `PATCH`, `DELETE`):
+   - **Bước 1 — Kiểm tra `Origin`:**
+     - Nếu header `Origin` có mặt: So sánh giá trị chính xác với whitelist (ví dụ: `https://<frontend-domain>` hoặc `http://localhost:5173`). Nếu khớp ➔ cho phép đi tiếp; nếu không khớp ➔ lập tức từ chối với `403 Forbidden` (`error.code: "CSRF_ORIGIN_INVALID"`).
+     - Nếu `Origin` có giá trị `null` (thường do iframe sandbox, chuyển hướng cross-origin, hoặc `data:` URL): Lập tức từ chối với `403 Forbidden` (`error.code: "CSRF_ORIGIN_INVALID"`).
+   - **Bước 2 — Fallback kiểm tra `Referer`:**
+     - Nếu `Origin` vắng mặt (xảy ra ở một số trình duyệt khi gọi same-origin hoặc chế độ ẩn danh): Kiểm tra header `Referer`.
+     - Phân tích cú pháp URL của `Referer`, trích xuất `scheme://host[:port]`. So sánh origin trích xuất được với whitelist. Nếu khớp ➔ cho phép đi tiếp; nếu không khớp hoặc URL `Referer` bị malformed ➔ từ chối với `403 Forbidden` (`error.code: "CSRF_REFERER_INVALID"`).
+   - **Bước 3 — Xử lý khi thiếu cả hai header:**
+     - Nếu cả `Origin` và `Referer` đều vắng mặt trên mutating request gửi từ trình duyệt: Lập tức từ chối với `403 Forbidden` (`error.code: "CSRF_HEADER_MISSING"`).
+
+> **Không có ngoại lệ bỏ qua (No Bypass):** Mọi request làm thay đổi dữ liệu (state-changing request) có sử dụng xác thực cookie nếu vắng mặt hoặc không vượt qua kiểm tra `Origin`/`Referer` đều bị từ chối với HTTP 403. Hệ thống tuyệt đối không âm thầm bỏ qua (silent bypass) việc kiểm tra nguồn gốc dưới bất kỳ lý do nào. Các request chỉ đọc (`GET`, `HEAD`) không làm thay đổi trạng thái nhưng vẫn được bảo vệ bởi lớp xác thực JWT cookie.
+
+> **Lưu ý cho Frontend:** Mọi lệnh gọi fetch/axios đến admin API phải luôn cấu hình `credentials: 'include'` và đính kèm header `X-Requested-With: XMLHttpRequest`.
+
+#### 1.5.4. Cấu hình CORS
+
+Backend phải cấu hình CORS tường minh theo origin cụ thể của Frontend:
+
+```http
+Access-Control-Allow-Origin: https://<frontend-domain>
+Access-Control-Allow-Credentials: true
+Access-Control-Allow-Headers: Content-Type, X-Requested-With
+Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS
+Access-Control-Max-Age: 3600
+```
+
+> **Quy tắc bất biến:**
+> - Tuyệt đối **không** dùng `Access-Control-Allow-Origin: *` vì tiêu chuẩn bảo mật trình duyệt cấm sử dụng wildcard `*` khi `Access-Control-Allow-Credentials: true`.
+> - Trong môi trường local development, chỉ cho phép origin của Vite dev server (ví dụ: `http://localhost:5173`).
+
+#### 1.5.5. Xử lý token hết hạn
+
+- Backend trả `401 Unauthorized` với `error.code: "TOKEN_EXPIRED"`.
+- Frontend nhận `401` → xóa trạng thái admin cục bộ → redirect về trang login.
+- Không có cơ chế tự gia hạn token trong MVP; admin phải đăng nhập lại.
+
+---
