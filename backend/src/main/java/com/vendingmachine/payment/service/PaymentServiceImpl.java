@@ -9,11 +9,17 @@ import com.vendingmachine.order.repository.OrderRepository;
 import com.vendingmachine.payment.dto.SePayWebhookDto;
 import com.vendingmachine.payment.dto.SePayWebhookResponseDto;
 import com.vendingmachine.payment.repository.PaymentTransactionRepository;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class PaymentServiceImpl implements PaymentService {
@@ -43,6 +49,12 @@ public class PaymentServiceImpl implements PaymentService {
     @Value("${app.payment.sepay.account-name:SMART VENDING MACHINE}")
     private String accountName;
 
+    @Autowired(required = false)
+    private PlatformTransactionManager transactionManager;
+
+    @Autowired(required = false)
+    private TransactionTemplate transactionTemplate;
+
     public PaymentServiceImpl(OrderRepository orderRepository,
                               PaymentTransactionRepository paymentTransactionRepository,
                               VietQrService vietQrService,
@@ -51,6 +63,13 @@ public class PaymentServiceImpl implements PaymentService {
         this.paymentTransactionRepository = paymentTransactionRepository;
         this.vietQrService = vietQrService;
         this.objectMapper = objectMapper;
+    }
+
+    @PostConstruct
+    public void init() {
+        if (this.transactionTemplate == null && this.transactionManager != null) {
+            this.transactionTemplate = new TransactionTemplate(this.transactionManager);
+        }
     }
 
     @Override
@@ -98,6 +117,29 @@ public class PaymentServiceImpl implements PaymentService {
             return SePayWebhookResponseDto.ok("Non-incoming transaction ignored");
         }
 
+        // Mutual exclusion per provider transaction ID to prevent concurrent duplicates from colliding
+        synchronized (("SEPAY_TX_" + providerTxId).intern()) {
+            if (paymentTransactionRepository.existsByProviderAndProviderTransactionId("SEPAY", providerTxId)) {
+                log.info("Duplicate SePay transaction ID {} verified in sync block; returning idempotent success", providerTxId);
+                return SePayWebhookResponseDto.ok("Duplicate transaction ignored");
+            }
+
+            try {
+                if (transactionTemplate != null) {
+                    return transactionTemplate.execute(status -> doProcessSePayWebhook(payload, providerTxId));
+                } else {
+                    return doProcessSePayWebhook(payload, providerTxId);
+                }
+            } catch (DataIntegrityViolationException ex) {
+                log.info("Duplicate SePay transaction ID {} caught DataIntegrityViolationException; returning idempotent success", providerTxId);
+                return SePayWebhookResponseDto.ok("Duplicate transaction ignored");
+            }
+        }
+    }
+
+    @Transactional
+    public SePayWebhookResponseDto doProcessSePayWebhook(SePayWebhookDto payload, String providerTxId) {
+        log.info("Processing SePay webhook transaction ID: {}", providerTxId);
         return SePayWebhookResponseDto.ok();
     }
 
