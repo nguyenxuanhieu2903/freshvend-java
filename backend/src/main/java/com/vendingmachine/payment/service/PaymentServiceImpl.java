@@ -84,6 +84,20 @@ public class PaymentServiceImpl implements PaymentService {
             return SePayWebhookResponseDto.ok("Payload missing id, ignored");
         }
 
+        String providerTxId = String.valueOf(payload.getId());
+
+        // 2. Fast-path check: prevent duplicate processing if already persisted
+        if (paymentTransactionRepository.existsByProviderAndProviderTransactionId("SEPAY", providerTxId)) {
+            log.info("Duplicate SePay transaction ID {} received; returning idempotent success", providerTxId);
+            return SePayWebhookResponseDto.ok("Duplicate transaction ignored");
+        }
+
+        // 3. Filter out non-incoming transactions
+        if (payload.getTransferType() != null && !payload.getTransferType().equalsIgnoreCase("in")) {
+            log.info("Ignored non-incoming transaction ID {} (type: {})", providerTxId, payload.getTransferType());
+            return SePayWebhookResponseDto.ok("Non-incoming transaction ignored");
+        }
+
         return SePayWebhookResponseDto.ok();
     }
 
