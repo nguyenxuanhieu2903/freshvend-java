@@ -494,3 +494,45 @@ Access-Control-Max-Age: 3600
 **Response 404:** Order không tồn tại.
 
 ---
+### 3.3. `GET /api/v1/orders/{orderId}/status`
+
+**Mục đích:** Endpoint nhẹ cho frontend polling trạng thái.
+
+**Phân quyền:** Công khai.
+
+**Response 200 OK:**
+
+```json
+{
+  "data": {
+    "orderId": "550e8400-e29b-41d4-a716-446655440010",
+    "status": "PAID",
+    "updatedAt": "2026-10-18T10:32:15Z",
+    "message": null
+  }
+}
+```
+
+**Khi trạng thái cần thông báo cho khách (`DISPENSE_FAILED`, `NEEDS_RECONCILIATION`, `EXPIRED`):**
+
+```json
+{
+  "data": {
+    "orderId": "550e8400-e29b-41d4-a716-446655440010",
+    "status": "NEEDS_RECONCILIATION",
+    "updatedAt": "2026-10-18T10:33:17Z",
+    "message": "Đơn hàng của bạn đang được kiểm tra. Vui lòng không thanh toán thêm lần nữa và liên hệ nhân viên nếu cần hỗ trợ."
+  }
+}
+```
+
+| Trường | Kiểu | Mô tả |
+|---|---|---|
+| `orderId` | string (UUID) | ID đơn hàng |
+| `status` | string | Trạng thái hiện tại (xem §6) |
+| `updatedAt` | string (ISO 8601) | Thời điểm trạng thái thay đổi gần nhất |
+| `message` | string \| null | Thông báo an toàn cho khách hàng khi cần, null nếu không |
+
+> **Polling:** Frontend poll endpoint này mỗi 2–3 giây. Dừng polling khi trạng thái là terminal: `COMPLETED`, `DISPENSE_FAILED`, `NEEDS_RECONCILIATION`, `EXPIRED`, `CANCELLED`. Không tạo vòng lặp vô tận; giới hạn tối đa bằng `paymentExpiresAt` + buffer.
+
+---
