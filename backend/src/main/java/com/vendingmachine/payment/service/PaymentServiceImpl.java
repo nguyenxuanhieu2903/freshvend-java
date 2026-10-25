@@ -211,7 +211,20 @@ public class PaymentServiceImpl implements PaymentService {
             return SePayWebhookResponseDto.ok("Duplicate payment for paid order recorded");
         }
 
-        return SePayWebhookResponseDto.ok();
+        if (order.getStatus() == OrderStatus.EXPIRED || Instant.now().isAfter(order.getPaymentExpiresAt())) {
+            // Late payment: order expired before payment arrived
+            saveTransaction(providerTxId, order, receivedAmount, transferRef, receivedAt,
+                    rawPayloadJson, VerificationStatus.LATE_PAYMENT, "LATE_PAYMENT");
+            // Mark order for reconciliation so operator can inspect and refund/remedy
+            orderRepository.updateOrderStatusIfExpected(order.getId(), OrderStatus.EXPIRED, OrderStatus.NEEDS_RECONCILIATION, Instant.now());
+            log.warn("Late payment received for EXPIRED order {}. Marked as NEEDS_RECONCILIATION", order.getId());
+            return SePayWebhookResponseDto.ok("Late payment recorded for reconciliation");
+        }
+
+        // Catch-all for other states (e.g. CANCELLED, NEEDS_RECONCILIATION)
+        saveTransaction(providerTxId, order, receivedAmount, transferRef, receivedAt,
+                rawPayloadJson, VerificationStatus.UNMATCHED, "IRREGULAR");
+        return SePayWebhookResponseDto.ok("Transaction recorded for irregular order status");
     }
 
     private String extractTransferReference(SePayWebhookDto payload) {
