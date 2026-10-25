@@ -536,3 +536,42 @@ Access-Control-Max-Age: 3600
 > **Polling:** Frontend poll endpoint này mỗi 2–3 giây. Dừng polling khi trạng thái là terminal: `COMPLETED`, `DISPENSE_FAILED`, `NEEDS_RECONCILIATION`, `EXPIRED`, `CANCELLED`. Không tạo vòng lặp vô tận; giới hạn tối đa bằng `paymentExpiresAt` + buffer.
 
 ---
+
+## 4. Endpoint — Webhook thanh toán
+
+### 4.1. `POST /api/v1/webhooks/payments/{provider}`
+
+**Mục đích:** Nhận thông báo thanh toán từ nhà cung cấp. Đây là endpoint quan trọng nhất — mọi lệnh nhả hàng đều bắt đầu từ đây.
+
+**Phân quyền:** Phải xác thực bằng cơ chế của nhà cung cấp (signature header, token, IP whitelist tùy provider).
+
+**Path parameters:**
+
+| Tham số | Kiểu | Mô tả |
+|---|---|---|
+| `provider` | string | Tên provider, ví dụ `sepay`, `payos` |
+
+> **TBD:** Cấu trúc request body, header xác thực và cơ chế verify signature phụ thuộc hoàn toàn vào nhà cung cấp thanh toán được chọn. Sẽ cập nhật ở Giai đoạn 5.
+
+**Quy tắc xử lý bắt buộc:**
+
+1. Xác thực chữ ký/token của provider trước khi xử lý bất kỳ dữ liệu nào.
+2. Reject ngay (`401` hoặc `400`) nếu xác thực thất bại.
+3. Kiểm tra `provider_transaction_id` đã tồn tại trong DB chưa (idempotency).
+4. Kiểm tra số tiền, tài khoản nhận, mã tham chiếu chuyển khoản và trạng thái giao dịch.
+5. Trả về HTTP 200 (hoặc code mà provider yêu cầu) kể cả khi giao dịch không khớp order — tránh provider retry liên tục.
+6. Giao dịch không khớp phải được lưu vào DB để reconciliation thủ công. Không silently discard.
+7. Webhook trùng lặp không tạo thêm dispensing command.
+8. Không phát lệnh nhả hàng cho giao dịch sai số tiền, giao dịch đến sau khi order đã expired, hay giao dịch cho order đã huỷ.
+
+**Interface `PaymentProvider` (khái niệm — không phụ thuộc provider cụ thể):**
+
+```
+createPaymentInstructions(order)   → payment QR data, transfer reference
+verifyWebhookSignature(request)    → boolean
+parsePaymentEvent(request)         → PaymentEvent
+matchTransactionToOrder(event)     → Order | null
+recordVerifiedTransaction(event)   → void
+```
+
+---
