@@ -190,6 +190,16 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         Order order = orderOpt.get();
+
+        // 6. Check amount
+        if (receivedAmount < order.getTotalAmountVnd()) {
+            saveTransaction(providerTxId, order, receivedAmount, transferRef, receivedAt,
+                    rawPayloadJson, VerificationStatus.UNDERPAID, "UNDERPAID");
+            log.warn("Underpayment for order {}: received {} VND, expected {} VND",
+                    order.getId(), receivedAmount, order.getTotalAmountVnd());
+            return SePayWebhookResponseDto.ok("Underpayment recorded");
+        }
+
         return SePayWebhookResponseDto.ok();
     }
 
