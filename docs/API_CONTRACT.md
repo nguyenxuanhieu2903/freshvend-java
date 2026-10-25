@@ -575,3 +575,59 @@ recordVerifiedTransaction(event)   → void
 ```
 
 ---
+
+## 5. Endpoint — Xác thực (Auth)
+
+Namespace: `/api/v1/auth/`
+
+Các endpoint này dùng cho admin authentication. Không yêu cầu cookie hợp lệ để gọi (vì dùng để lấy cookie), nhưng có rate limit để chống brute force.
+
+### 5.1. `POST /api/v1/auth/login`
+
+**Mục đích:** Đăng nhập admin. Server set cookie `admin_access_token`.
+
+**Phân quyền:** Công khai (rate limited).
+
+**Request body:**
+
+```json
+{
+  "username": "admin",
+  "password": "your_password"
+}
+```
+
+**Response 200 OK:**
+
+```json
+{
+  "data": {
+    "username": "admin",
+    "expiresAt": "2026-10-19T10:30:00Z"
+  }
+}
+```
+
+Response headers sẽ bao gồm:
+```
+Set-Cookie: admin_access_token=<jwt>; HttpOnly; Secure; SameSite=None; Path=/api/v1; Max-Age=28800
+```
+
+> **Lưu ý:** Token **không** xuất hiện trong response body. Frontend chỉ biết thời gian hết hạn để quản lý UI. Trình duyệt tự động lưu cookie và gửi kèm các request tiếp theo.
+
+**Response 401 Unauthorized:**
+
+```json
+{
+  "error": {
+    "code": "INVALID_CREDENTIALS",
+    "message": "Tên đăng nhập hoặc mật khẩu không đúng.",
+    "timestamp": "...",
+    "requestId": "..."
+  }
+}
+```
+
+> **Bảo mật:** Trả về thông báo chung chung — không phân biệt "username không tồn tại" hay "sai password" để tránh username enumeration.
+
+---
