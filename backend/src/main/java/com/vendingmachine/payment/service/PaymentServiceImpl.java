@@ -21,10 +21,14 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 @Service
 public class PaymentServiceImpl implements PaymentService {
 
     private static final Logger log = LoggerFactory.getLogger(PaymentServiceImpl.class);
+    private static final Pattern REF_PATTERN = Pattern.compile("(?i)(VM[A-Z0-9_-]+)");
 
     private final OrderRepository orderRepository;
     private final PaymentTransactionRepository paymentTransactionRepository;
@@ -140,7 +144,33 @@ public class PaymentServiceImpl implements PaymentService {
     @Transactional
     public SePayWebhookResponseDto doProcessSePayWebhook(SePayWebhookDto payload, String providerTxId) {
         log.info("Processing SePay webhook transaction ID: {}", providerTxId);
+        String transferRef = extractTransferReference(payload);
+        log.debug("Extracted transfer reference: {}", transferRef);
         return SePayWebhookResponseDto.ok();
+    }
+
+    private String extractTransferReference(SePayWebhookDto payload) {
+        if (payload.getCode() != null && !payload.getCode().isBlank()) {
+            return payload.getCode().trim();
+        }
+
+        String content = payload.getContent();
+        if (content != null && !content.isBlank()) {
+            Matcher matcher = REF_PATTERN.matcher(content);
+            if (matcher.find()) {
+                return matcher.group(1);
+            }
+        }
+
+        String description = payload.getDescription();
+        if (description != null && !description.isBlank()) {
+            Matcher matcher = REF_PATTERN.matcher(description);
+            if (matcher.find()) {
+                return matcher.group(1);
+            }
+        }
+
+        return null;
     }
 
     private void authenticateWebhook(String authHeader) {
