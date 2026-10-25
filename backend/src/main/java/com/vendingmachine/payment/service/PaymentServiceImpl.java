@@ -6,6 +6,7 @@ import com.vendingmachine.common.exception.BusinessException;
 import com.vendingmachine.common.exception.ErrorCode;
 import com.vendingmachine.order.dto.OrderResponseDto;
 import com.vendingmachine.order.entity.Order;
+import com.vendingmachine.order.entity.OrderStatus;
 import com.vendingmachine.order.repository.OrderRepository;
 import com.vendingmachine.payment.dto.SePayWebhookDto;
 import com.vendingmachine.payment.dto.SePayWebhookResponseDto;
@@ -198,6 +199,16 @@ public class PaymentServiceImpl implements PaymentService {
             log.warn("Underpayment for order {}: received {} VND, expected {} VND",
                     order.getId(), receivedAmount, order.getTotalAmountVnd());
             return SePayWebhookResponseDto.ok("Underpayment recorded");
+        }
+
+        // 7. Check current order status
+        if (order.getStatus() == OrderStatus.PAID) {
+            // Already paid: customer transferred multiple times
+            saveTransaction(providerTxId, order, receivedAmount, transferRef, receivedAt,
+                    rawPayloadJson, VerificationStatus.DUPLICATE, "SUCCESS");
+            log.warn("Multiple payments for already PAID order {}: recorded transaction {}",
+                    order.getId(), providerTxId);
+            return SePayWebhookResponseDto.ok("Duplicate payment for paid order recorded");
         }
 
         return SePayWebhookResponseDto.ok();
