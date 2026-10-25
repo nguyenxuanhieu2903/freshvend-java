@@ -631,3 +631,27 @@ Set-Cookie: admin_access_token=<jwt>; HttpOnly; Secure; SameSite=None; Path=/api
 > **Bảo mật:** Trả về thông báo chung chung — không phân biệt "username không tồn tại" hay "sai password" để tránh username enumeration.
 
 ---
+
+### 5.2. `POST /api/v1/auth/logout`
+
+**Mục đích:** Đăng xuất admin. Server xóa cookie và vô hiệu hóa token qua `tokenVersion`.
+
+**Phân quyền:** Ưu tiên gọi khi có cookie hợp lệ, nhưng xử lý graceful khi cookie hết hạn hoặc không có.
+
+**Request:** Không cần body. Cookie `admin_access_token` được đọc tự động bởi trình duyệt.
+
+**Hành vi:**
+
+1. Nếu cookie hợp lệ và token còn thời hạn: tăng `tokenVersion` trong DB, xóa cookie.
+2. Nếu cookie hết hạn hoặc không hợp lệ: vẫn xóa cookie phía client (trả về `204`).
+3. Không trả về lỗi `401` khi logout — mục đích luôn là xóa trạng thái đã đăng nhập.
+
+**Response 204 No Content** (không có body):
+
+```
+Set-Cookie: admin_access_token=; HttpOnly; Secure; SameSite=None; Path=/api/v1; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT
+```
+
+> **Quy tắc xóa cookie:** Phải gửi `Set-Cookie` với `Max-Age=0` và `Expires` trong quá khứ. Phải khớp đúng `Path`, `Domain` và `SameSite` với cookie gốc, nếu không trình duyệt sẽ không xóa được cookie.
+
+---
