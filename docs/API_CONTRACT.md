@@ -280,3 +280,78 @@ Access-Control-Max-Age: 3600
 > **Cache:** Frontend có thể cache catalog để hiển thị, nhưng backend phải luôn kiểm tra lại giá và tồn kho khi tạo đơn hàng.
 
 ---
+
+## 3. Endpoint — Đơn hàng
+
+### 3.1. `POST /api/v1/orders`
+
+**Mục đích:** Tạo đơn hàng mới. Backend kiểm tra giá và tồn kho từ database.
+
+**Phân quyền:** Công khai.
+
+**Request body:**
+
+```json
+{
+  "machineId": "VM001",
+  "productId": "550e8400-e29b-41d4-a716-446655440001",
+  "quantity": 1
+}
+```
+
+| Trường | Kiểu | Bắt buộc | Ràng buộc |
+|---|---|---|---|
+| `machineId` | string | ✅ | Phải là machine đang `ACTIVE` |
+| `productId` | string (UUID) | ✅ | Phải là product đang active và thuộc machine này |
+| `quantity` | integer | ✅ | MVP: chỉ chấp nhận `1` |
+
+> **Quy tắc nghiệp vụ bắt buộc:**
+> - Backend **không** tin bất kỳ giá tiền do frontend gửi lên.
+> - Backend tự tính `totalAmountVnd` từ `priceVnd` trong database.
+> - Backend kiểm tra `stockQuantity > 0` và machine `ACTIVE`.
+> - Backend tạo `transferReference` duy nhất để khớp giao dịch ngân hàng.
+> - MVP: `quantity` phải là `1`.
+
+**Response 201 Created:**
+
+```json
+{
+  "data": {
+    "orderId": "550e8400-e29b-41d4-a716-446655440010",
+    "publicOrderCode": "VM001-20261018-AB3F",
+    "machineId": "VM001",
+    "product": {
+      "productId": "550e8400-e29b-41d4-a716-446655440001",
+      "name": "Nước suối Aqua 500ml",
+      "priceVnd": 8000
+    },
+    "quantity": 1,
+    "totalAmountVnd": 8000,
+    "status": "PENDING_PAYMENT",
+    "payment": {
+      "transferReference": "VM001AB3F",
+      "paymentQrData": "...",
+      "bankAccountNumber": "123456789",
+      "bankAccountName": "NGUYEN VAN A",
+      "bankName": "Vietcombank",
+      "amountVnd": 8000,
+      "paymentExpiresAt": "2026-10-18T10:45:00Z"
+    },
+    "createdAt": "2026-10-18T10:30:00Z"
+  }
+}
+```
+
+**Lỗi có thể trả về:**
+
+| Tình huống | HTTP Code | `error.code` | Thông báo mẫu cho khách |
+|---|---|---|---|
+| Machine không tồn tại | `404` | `MACHINE_NOT_FOUND` | "Máy bán hàng không tồn tại." |
+| Machine tồn tại nhưng inactive/maintenance | `422` | `MACHINE_INACTIVE` | "Máy bán hàng hiện đang tạm ngừng hoạt động." |
+| Product không tồn tại hoặc inactive | `404` | `PRODUCT_NOT_FOUND` | "Sản phẩm không tồn tại." |
+| Product không thuộc machine này | `422` | `PRODUCT_NOT_IN_MACHINE` | "Sản phẩm không có tại máy này." |
+| Hết hàng | `409` | `PRODUCT_OUT_OF_STOCK` | "Sản phẩm này hiện đã hết hàng." |
+| `quantity` khác `1` (MVP) | `400` | `INVALID_QUANTITY` | "Chỉ có thể đặt 1 sản phẩm mỗi lần." |
+| Thiếu field bắt buộc | `400` | `VALIDATION_ERROR` | "Dữ liệu không hợp lệ. Vui lòng thử lại." |
+
+---
