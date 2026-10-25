@@ -355,3 +355,142 @@ Access-Control-Max-Age: 3600
 | Thiếu field bắt buộc | `400` | `VALIDATION_ERROR` | "Dữ liệu không hợp lệ. Vui lòng thử lại." |
 
 ---
+### 3.2. `GET /api/v1/orders/{orderId}`
+
+**Mục đích:** Lấy chi tiết đơn hàng. Frontend dùng để hiển thị trang thanh toán và theo dõi trạng thái.
+
+**Phân quyền:** Công khai — `orderId` là UUID ngẫu nhiên đủ khó đoán. Không dùng sequential integer ID.
+
+**Response luôn có cấu trúc đầy đủ bất kể trạng thái.** Các trường chưa có giá trị trả về `null`.
+
+**Response 200 OK — cấu trúc đầy đủ:**
+
+```json
+{
+  "data": {
+    "orderId": "550e8400-e29b-41d4-a716-446655440010",
+    "publicOrderCode": "VM001-20261018-AB3F",
+    "machineId": "VM001",
+    "product": {
+      "productId": "550e8400-e29b-41d4-a716-446655440001",
+      "name": "Nước suối Aqua 500ml",
+      "priceVnd": 8000
+    },
+    "quantity": 1,
+    "totalAmountVnd": 8000,
+    "status": "PENDING_PAYMENT",
+    "payment": {
+      "transferReference": "VM001AB3F",
+      "paymentQrData": "...",
+      "bankAccountNumber": "123456789",
+      "bankAccountName": "NGUYEN VAN A",
+      "bankName": "Vietcombank",
+      "amountVnd": 8000,
+      "paymentExpiresAt": "2026-10-18T10:45:00Z",
+      "paidAt": null
+    },
+    "dispensing": {
+      "startedAt": null,
+      "completedAt": null,
+      "result": null,
+      "verificationLevel": null,
+      "message": null
+    },
+    "createdAt": "2026-10-18T10:30:00Z",
+    "updatedAt": "2026-10-18T10:30:00Z"
+  }
+}
+```
+
+**Ví dụ khi trạng thái là `DISPENSING`:**
+
+```json
+{
+  "data": {
+    "orderId": "550e8400-e29b-41d4-a716-446655440010",
+    "publicOrderCode": "VM001-20261018-AB3F",
+    "machineId": "VM001",
+    "product": {
+      "productId": "550e8400-e29b-41d4-a716-446655440001",
+      "name": "Nước suối Aqua 500ml",
+      "priceVnd": 8000
+    },
+    "quantity": 1,
+    "totalAmountVnd": 8000,
+    "status": "DISPENSING",
+    "payment": {
+      "transferReference": "VM001AB3F",
+      "paymentQrData": "...",
+      "bankAccountNumber": "123456789",
+      "bankAccountName": "NGUYEN VAN A",
+      "bankName": "Vietcombank",
+      "amountVnd": 8000,
+      "paymentExpiresAt": "2026-10-18T10:45:00Z",
+      "paidAt": "2026-10-18T10:32:15Z"
+    },
+    "dispensing": {
+      "startedAt": "2026-10-18T10:32:16Z",
+      "completedAt": null,
+      "result": null,
+      "verificationLevel": null,
+      "message": "Đang chuẩn bị sản phẩm cho bạn..."
+    },
+    "createdAt": "2026-10-18T10:30:00Z",
+    "updatedAt": "2026-10-18T10:32:16Z"
+  }
+}
+```
+
+**Ví dụ khi trạng thái là `COMPLETED`:**
+
+```json
+{
+  "data": {
+    "orderId": "550e8400-e29b-41d4-a716-446655440010",
+    "status": "COMPLETED",
+    "dispensing": {
+      "startedAt": "2026-10-18T10:32:16Z",
+      "completedAt": "2026-10-18T10:32:19Z",
+      "result": "SUCCESS",
+      "verificationLevel": "MOTOR_CYCLE_ONLY",
+      "message": "Sản phẩm đã được nhả ra. Vui lòng lấy hàng tại ngăn dưới."
+    }
+  }
+}
+```
+
+**Ví dụ khi trạng thái là `DISPENSE_FAILED` hoặc `NEEDS_RECONCILIATION`:**
+
+```json
+{
+  "data": {
+    "orderId": "550e8400-e29b-41d4-a716-446655440010",
+    "status": "DISPENSE_FAILED",
+    "dispensing": {
+      "startedAt": "2026-10-18T10:32:16Z",
+      "completedAt": "2026-10-18T10:33:17Z",
+      "result": "FAILURE",
+      "verificationLevel": "MOTOR_CYCLE_ONLY",
+      "message": "Máy có thể gặp sự cố khi nhả hàng. Vui lòng liên hệ nhân viên hỗ trợ và không thanh toán thêm lần nữa."
+    }
+  }
+}
+```
+
+**Mô tả trường `dispensing`:**
+
+| Trường | Kiểu | Mô tả |
+|---|---|---|
+| `startedAt` | string \| null | Thời điểm bắt đầu xử lý nhả hàng |
+| `completedAt` | string \| null | Thời điểm kết thúc (thành công hoặc thất bại) |
+| `result` | `"SUCCESS"` \| `"FAILURE"` \| null | Kết quả được báo cáo bởi ESP32 |
+| `verificationLevel` | `"MOTOR_CYCLE_ONLY"` \| `"SENSOR_CONFIRMED"` \| null | Mức độ xác nhận vật lý |
+| `message` | string \| null | Thông báo an toàn cho khách hàng, phù hợp với trạng thái hiện tại |
+
+> **Quy tắc `verificationLevel`:** Không bao giờ trả về `"SENSOR_CONFIRMED"` nếu phần cứng chưa có cảm biến. Mặc định là `"MOTOR_CYCLE_ONLY"` — nghĩa là động cơ hoàn thành chu kỳ nhưng không có bằng chứng độc lập rằng hàng đã rơi xuống.
+
+> **Quy tắc `message`:** Chỉ chứa thông báo thân thiện cho khách hàng theo SPEC §6.6 và §6.7. Không chứa stack trace, lỗi kỹ thuật, địa chỉ MQTT, thông tin nội bộ hay bất kỳ secret nào.
+
+**Response 404:** Order không tồn tại.
+
+---
