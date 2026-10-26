@@ -655,3 +655,36 @@ Set-Cookie: admin_access_token=; HttpOnly; Secure; SameSite=None; Path=/api/v1; 
 > **Quy tắc xóa cookie:** Phải gửi `Set-Cookie` với `Max-Age=0` và `Expires` trong quá khứ. Phải khớp đúng `Path`, `Domain` và `SameSite` với cookie gốc, nếu không trình duyệt sẽ không xóa được cookie.
 
 ---
+
+## 6. Trạng thái đơn hàng (Order State Machine)
+
+| Trạng thái | Mô tả |
+|---|---|
+| `PENDING_PAYMENT` | Đơn hàng mới tạo, đang chờ thanh toán |
+| `PAID` | Giao dịch ngân hàng đã được xác minh thành công |
+| `DISPENSING` | Lệnh nhả hàng đã được ghi nhận bền vững và phát tới ESP32 |
+| `COMPLETED` | ESP32 báo cáo hoàn thành chu kỳ động cơ |
+| `DISPENSE_FAILED` | ESP32 báo cáo lỗi xác định |
+| `NEEDS_RECONCILIATION` | Kết quả không chắc chắn — cần quản trị viên xem xét thủ công |
+| `EXPIRED` | Đơn hàng hết thời gian thanh toán |
+| `CANCELLED` | Đơn hàng bị hủy trước khi thanh toán |
+
+**Cho phép chuyển trạng thái:**
+
+| Từ | Sự kiện | Sang |
+|---|---|---|
+| `PENDING_PAYMENT` | Giao dịch hợp lệ được xác minh qua webhook | `PAID` |
+| `PENDING_PAYMENT` | Hết thời gian thanh toán | `EXPIRED` |
+| `PENDING_PAYMENT` | Hủy trước khi thanh toán | `CANCELLED` |
+| `PAID` | Lệnh nhả hàng được ghi nhận bền vững vào DB và đã phát đi | `DISPENSING` |
+| `DISPENSING` | ESP32 báo hoàn thành thành công | `COMPLETED` |
+| `DISPENSING` | ESP32 báo lỗi xác định (motor timeout, stall, hardware error) | `DISPENSE_FAILED` |
+| `DISPENSING` | ESP32 báo kết quả bất định (UNCERTAIN) hoặc timeout không nhận được phản hồi | `NEEDS_RECONCILIATION` |
+
+**Bất biến:**
+
+- Đơn hàng đã `PAID` không bao giờ quay về `PENDING_PAYMENT`.
+- Webhook trùng lặp không thay đổi trạng thái đơn hàng đã `PAID` trở về trước.
+- Backend phải commit trạng thái `PAID` và bản ghi lệnh nhả hàng vào DB trước khi publish MQTT — không giữ database transaction mở trong khi chờ mạng.
+
+---
