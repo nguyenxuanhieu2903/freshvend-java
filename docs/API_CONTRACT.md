@@ -688,3 +688,69 @@ Set-Cookie: admin_access_token=; HttpOnly; Secure; SameSite=None; Path=/api/v1; 
 - Backend phải commit trạng thái `PAID` và bản ghi lệnh nhả hàng vào DB trước khi publish MQTT — không giữ database transaction mở trong khi chờ mạng.
 
 ---
+
+## 7. Endpoint quản trị (Admin)
+
+Tất cả endpoint trong namespace `/api/v1/admin/**` yêu cầu cookie `admin_access_token` hợp lệ.
+
+Tất cả request mutating (POST, PUT, PATCH, DELETE) phải kèm header `X-Requested-With: XMLHttpRequest` (chống CSRF).
+
+Frontend phải dùng `credentials: 'include'` cho tất cả fetch đến admin endpoints.
+
+### 7.1. `GET /api/v1/admin/products`
+
+**Mục đích:** Danh sách tất cả sản phẩm (bao gồm inactive).
+
+**Response 200 OK:**
+
+```json
+{
+  "data": {
+    "products": [
+      {
+        "productId": "550e8400-e29b-41d4-a716-446655440001",
+        "name": "Nước suối Aqua 500ml",
+        "description": "...",
+        "imageUrl": "...",
+        "priceVnd": 8000,
+        "slotNumber": 1,
+        "stockQuantity": 5,
+        "reservedQuantity": 0,
+        "isActive": true,
+        "createdAt": "2026-10-01T00:00:00Z",
+        "updatedAt": "2026-10-18T09:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 7.2. `POST /api/v1/admin/products`
+
+**Mục đích:** Tạo sản phẩm mới.
+
+**Request:**
+
+```json
+{
+  "name": "Tên sản phẩm",
+  "description": "Mô tả tùy chọn",
+  "imageUrl": "https://example.com/image.jpg",
+  "priceVnd": 10000,
+  "slotNumber": 1,
+  "stockQuantity": 10
+}
+```
+
+**Ràng buộc:**
+
+| Trường | Ràng buộc |
+|---|---|
+| `name` | Bắt buộc, không được rỗng |
+| `priceVnd` | Bắt buộc, phải > 0 |
+| `slotNumber` | Bắt buộc, phải là 1, 2 hoặc 3; mỗi slot chỉ có 1 sản phẩm active (MVP) |
+| `stockQuantity` | Bắt buộc, phải ≥ 0 |
+
+---
