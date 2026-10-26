@@ -1,4 +1,4 @@
-﻿package com.vendingmachine.order.service;
+package com.vendingmachine.order.service;
 
 import com.vendingmachine.common.exception.BusinessException;
 import com.vendingmachine.common.exception.ErrorCode;
@@ -343,6 +343,7 @@ public class OrderServiceImpl implements OrderService {
 
     private String determineCustomerStatusMessage(Order order) {
         return switch (order.getStatus()) {
+            case PAID -> "Thanh toán thành công. Đang chuẩn bị sản phẩm cho bạn...";
             case EXPIRED -> "Đơn hàng đã hết hạn thanh toán.";
             case DISPENSE_FAILED -> "Máy có thể gặp sự cố khi nhả hàng. Vui lòng liên hệ nhân viên hỗ trợ và không thanh toán thêm lần nữa.";
             case NEEDS_RECONCILIATION -> "Đơn hàng của bạn đang được kiểm tra. Vui lòng không thanh toán thêm lần nữa và liên hệ nhân viên nếu cần hỗ trợ.";
