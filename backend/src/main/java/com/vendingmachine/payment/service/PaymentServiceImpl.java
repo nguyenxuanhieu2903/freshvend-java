@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -63,6 +64,13 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Value("${app.payment.sepay.account-name:SMART VENDING MACHINE}")
     private String accountName;
+
+    @Autowired(required = false)
+    @Lazy
+    private com.vendingmachine.dispense.service.DispenseService dispenseService;
+
+    @Value("${app.dispense.auto-trigger:true}")
+    private boolean autoTriggerDispense = true;
 
     @Autowired(required = false)
     private PlatformTransactionManager transactionManager;
@@ -219,6 +227,57 @@ public class PaymentServiceImpl implements PaymentService {
             orderRepository.updateOrderStatusIfExpected(order.getId(), OrderStatus.EXPIRED, OrderStatus.NEEDS_RECONCILIATION, Instant.now());
             log.warn("Late payment received for EXPIRED order {}. Marked as NEEDS_RECONCILIATION", order.getId());
             return SePayWebhookResponseDto.ok("Late payment recorded for reconciliation");
+        }
+
+        if (order.getStatus() == OrderStatus.PENDING_PAYMENT) {
+            // 8. Atomic transition to PAID
+            Instant now = Instant.now();
+            int updatedRows = orderRepository.markOrderAsPaidIfPending(order.getId(), now, now);
+
+            if (updatedRows == 1) {
+                // Stock reservation is KEPT in Phase 5 per specification (stock_quantity is not deducted here)
+                saveTransaction(providerTxId, order, receivedAmount, transferRef, receivedAt,
+                        rawPayloadJson, VerificationStatus.VERIFIED, "SUCCESS");
+                log.info("Order {} successfully verified and marked as PAID (Tx: {}, Amount: {} VND)",
+                        order.getId(), providerTxId, receivedAmount);
+
+                if (autoTriggerDispense && dispenseService != null) {
+                    if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+                        org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                                new org.springframework.transaction.support.TransactionSynchronization() {
+                                    @Override
+                                    public void afterCommit() {
+                                        try {
+                                            dispenseService.triggerDispensing(order.getId());
+                                        } catch (Exception e) {
+                                            log.error("Failed to auto-trigger dispensing for order {}", order.getId(), e);
+                                        }
+                                    }
+                                });
+                    } else {
+                        try {
+                            dispenseService.triggerDispensing(order.getId());
+                        } catch (Exception e) {
+                            log.error("Failed to auto-trigger dispensing for order {}", order.getId(), e);
+                        }
+                    }
+                }
+
+                return SePayWebhookResponseDto.ok("Payment verified and order marked as PAID");
+            } else {
+                // Another thread transitioned order in between (e.g. concurrent expiration or duplicate webhook)
+                Order freshOrder = orderRepository.findById(order.getId()).orElse(order);
+                if (freshOrder.getStatus() == OrderStatus.EXPIRED) {
+                    saveTransaction(providerTxId, freshOrder, receivedAmount, transferRef, receivedAt,
+                            rawPayloadJson, VerificationStatus.LATE_PAYMENT, "LATE_PAYMENT");
+                    orderRepository.updateOrderStatusIfExpected(freshOrder.getId(), OrderStatus.EXPIRED, OrderStatus.NEEDS_RECONCILIATION, now);
+                    return SePayWebhookResponseDto.ok("Late payment recorded");
+                } else {
+                    saveTransaction(providerTxId, freshOrder, receivedAmount, transferRef, receivedAt,
+                            rawPayloadJson, VerificationStatus.DUPLICATE, "SUCCESS");
+                    return SePayWebhookResponseDto.ok("Concurrent duplicate payment recorded");
+                }
+            }
         }
 
         // Catch-all for other states (e.g. CANCELLED, NEEDS_RECONCILIATION)
