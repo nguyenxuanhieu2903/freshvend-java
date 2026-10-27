@@ -754,3 +754,98 @@ Frontend phải dùng `credentials: 'include'` cho tất cả fetch đến admin
 | `stockQuantity` | Bắt buộc, phải ≥ 0 |
 
 ---
+
+### 7.3. `PUT /api/v1/admin/products/{productId}`
+
+**Mục đích:** Cập nhật thông tin sản phẩm (đầy đủ).
+
+---
+
+### 7.4. `PATCH /api/v1/admin/products/{productId}/stock`
+
+**Mục đích:** Điều chỉnh tồn kho (admin nạp hàng vào máy).
+
+**Request:**
+
+```json
+{
+  "adjustment": 10,
+  "reason": "Đã nạp thêm hàng vào máy"
+}
+```
+
+| Trường | Kiểu | Mô tả |
+|---|---|---|
+| `adjustment` | integer | Số lượng thay đổi (dương = thêm, âm = bớt) |
+| `reason` | string | Lý do thay đổi — bắt buộc để audit log |
+
+---
+
+### 7.5. `GET /api/v1/admin/orders`
+
+**Mục đích:** Danh sách đơn hàng gần đây.
+
+**Query parameters:**
+
+| Tham số | Mô tả | Mặc định |
+|---|---|---|
+| `page` | Số trang (0-indexed) | `0` |
+| `size` | Số bản ghi mỗi trang | `20` |
+| `status` | Lọc theo trạng thái | (tất cả) |
+
+---
+
+### 7.6. `GET /api/v1/admin/orders/{orderId}`
+
+**Mục đích:** Chi tiết đầy đủ của đơn hàng dành cho admin, bao gồm lịch sử giao dịch thanh toán và lệnh nhả hàng.
+
+**Response 200 OK:**
+
+```json
+{
+  "data": {
+    "orderId": "550e8400-e29b-41d4-a716-446655440010",
+    "publicOrderCode": "VM001-20261018-AB3F",
+    "machineId": "VM001",
+    "product": {
+      "productId": "550e8400-e29b-41d4-a716-446655440001",
+      "name": "Nước suối Aqua 500ml",
+      "slotNumber": 1,
+      "priceVnd": 8000
+    },
+    "quantity": 1,
+    "unitPriceVnd": 8000,
+    "totalAmountVnd": 8000,
+    "transferReference": "VM001AB3F",
+    "status": "COMPLETED",
+    "createdAt": "2026-10-18T10:30:00Z",
+    "updatedAt": "2026-10-18T10:32:19Z",
+    "paidAt": "2026-10-18T10:32:15Z",
+    "dispensingStartedAt": "2026-10-18T10:32:16Z",
+    "completedAt": "2026-10-18T10:32:19Z",
+    "paymentTransaction": {
+      "transactionId": "550e8400-e29b-41d4-a716-446655440050",
+      "provider": "sepay",
+      "providerTransactionId": "TXN123456789",
+      "amountVnd": 8000,
+      "verificationStatus": "VERIFIED",
+      "receivedAt": "2026-10-18T10:32:14Z"
+    },
+    "dispenseCommand": {
+      "commandId": "550e8400-e29b-41d4-a716-446655440020",
+      "slotNumber": 1,
+      "status": "COMPLETED",
+      "attemptCount": 1,
+      "publishedAt": "2026-10-18T10:32:16Z",
+      "acknowledgedAt": "2026-10-18T10:32:16.500Z",
+      "finishedAt": "2026-10-18T10:32:19Z",
+      "failureCode": null,
+      "failureMessage": null
+    }
+  }
+}
+```
+
+> **Lưu ý bảo mật:** Không bao giờ trả về raw webhook payload đầy đủ hoặc thông tin ngân hàng nhạy cảm của khách hàng cho admin response. Chỉ trả về thông tin đã được sanitize và cần thiết cho vận hành.
+
+---
