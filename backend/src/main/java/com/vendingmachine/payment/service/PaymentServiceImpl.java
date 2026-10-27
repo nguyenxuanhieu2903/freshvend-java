@@ -24,6 +24,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
@@ -35,6 +37,11 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * Service implementation for handling VietQR generation and SePay webhook processing.
+ * Hardened with duplicate check, pessimistic locking, atomic state transitions,
+ * idempotent sync locks, and sanitized logging.
+ */
 @Service
 public class PaymentServiceImpl implements PaymentService {
 
@@ -170,15 +177,15 @@ public class PaymentServiceImpl implements PaymentService {
         String transferRef = extractTransferReference(payload);
 
         if (transferRef == null) {
-            // Unmatched reference
+            // Unmatched reference: sanitize content before logging to protect customer PII / sensitive notes
             saveTransaction(providerTxId, null, receivedAmount, null, receivedAt,
                     rawPayloadJson, VerificationStatus.UNMATCHED, "SUCCESS");
             log.warn("SePay transaction {} has no identifiable transfer reference in content: '{}'",
-                    providerTxId, payload.getContent());
+                    providerTxId, sanitizeLogContent(payload.getContent()));
             return SePayWebhookResponseDto.ok("Unmatched transfer reference recorded");
         }
 
-        // 5. Match Order
+        // 5. Match Order with Pessimistic Lock
         Optional<Order> orderOpt;
         try {
             orderOpt = orderRepository.findByTransferReferenceForUpdate(transferRef);
@@ -242,9 +249,9 @@ public class PaymentServiceImpl implements PaymentService {
                         order.getId(), providerTxId, receivedAmount);
 
                 if (autoTriggerDispense && dispenseService != null) {
-                    if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
-                        org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
-                                new org.springframework.transaction.support.TransactionSynchronization() {
+                    if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                        TransactionSynchronizationManager.registerSynchronization(
+                                new TransactionSynchronization() {
                                     @Override
                                     public void afterCommit() {
                                         try {
@@ -284,6 +291,32 @@ public class PaymentServiceImpl implements PaymentService {
         saveTransaction(providerTxId, order, receivedAmount, transferRef, receivedAt,
                 rawPayloadJson, VerificationStatus.UNMATCHED, "IRREGULAR");
         return SePayWebhookResponseDto.ok("Transaction recorded for irregular order status");
+    }
+
+    private void authenticateWebhook(String authHeader) {
+        if (configuredApiKey == null || configuredApiKey.isBlank()) {
+            if (demoMode) {
+                log.warn("SePay API key not configured; accepting webhook in DEMO mode");
+                return;
+            }
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Webhook API key not configured on server", HttpStatus.UNAUTHORIZED);
+        }
+
+        if (authHeader == null || authHeader.isBlank()) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Missing Authorization header in webhook request", HttpStatus.UNAUTHORIZED);
+        }
+
+        String token = authHeader.trim();
+        if (token.startsWith("Apikey ")) {
+            token = token.substring(7).trim();
+        } else if (token.startsWith("Bearer ")) {
+            token = token.substring(7).trim();
+        }
+
+        if (!configuredApiKey.equals(token)) {
+            log.warn("Invalid webhook credentials received");
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Invalid SePay webhook API key", HttpStatus.UNAUTHORIZED);
+        }
     }
 
     private String extractTransferReference(SePayWebhookDto payload) {
@@ -354,29 +387,18 @@ public class PaymentServiceImpl implements PaymentService {
         }
     }
 
-    private void authenticateWebhook(String authHeader) {
-        if (configuredApiKey == null || configuredApiKey.isBlank()) {
-            if (demoMode) {
-                log.warn("SePay API key not configured; accepting webhook in DEMO mode");
-                return;
-            }
-            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Webhook API key not configured on server", HttpStatus.UNAUTHORIZED);
+    /**
+     * Sanitizes potentially sensitive webhook content before logging, masking continuous numeric digits
+     * (such as account or card numbers) and truncating overly verbose strings to prevent PII leakage.
+     */
+    private String sanitizeLogContent(String raw) {
+        if (raw == null) {
+            return "[null]";
         }
-
-        if (authHeader == null || authHeader.isBlank()) {
-            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Missing Authorization header in webhook request", HttpStatus.UNAUTHORIZED);
+        String masked = raw.replaceAll("\\b\\d{4,}\\b", "****");
+        if (masked.length() > 60) {
+            return masked.substring(0, 60) + "...";
         }
-
-        String token = authHeader.trim();
-        if (token.startsWith("Apikey ")) {
-            token = token.substring(7).trim();
-        } else if (token.startsWith("Bearer ")) {
-            token = token.substring(7).trim();
-        }
-
-        if (!configuredApiKey.equals(token)) {
-            log.warn("Invalid webhook credentials received");
-            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Invalid SePay webhook API key", HttpStatus.UNAUTHORIZED);
-        }
+        return masked;
     }
 }
