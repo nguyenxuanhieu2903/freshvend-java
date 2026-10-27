@@ -849,3 +849,38 @@ Frontend phải dùng `credentials: 'include'` cho tất cả fetch đến admin
 > **Lưu ý bảo mật:** Không bao giờ trả về raw webhook payload đầy đủ hoặc thông tin ngân hàng nhạy cảm của khách hàng cho admin response. Chỉ trả về thông tin đã được sanitize và cần thiết cho vận hành.
 
 ---
+
+### 7.7. `GET /api/v1/admin/devices/status`
+
+**Mục đích:** Xem trạng thái kết nối và heartbeat gần nhất của ESP32.
+
+**Response 200 OK:**
+
+```json
+{
+  "data": {
+    "machineId": "VM001",
+    "isOnline": true,
+    "lastHeartbeatAt": "2026-10-18T10:29:55Z",
+    "secondsSinceLastHeartbeat": 30,
+    "firmwareVersion": "1.0.0",
+    "uptimeSeconds": 3600,
+    "wifiRssi": -65,
+    "slots": [
+      { "slotNumber": 1, "lastDispenseResult": "SUCCESS", "lastDispenseAt": "2026-10-18T09:00:00Z" },
+      { "slotNumber": 2, "lastDispenseResult": null, "lastDispenseAt": null },
+      { "slotNumber": 3, "lastDispenseResult": null, "lastDispenseAt": null }
+    ]
+  }
+}
+```
+
+> **Lưu ý:** `isOnline` dựa trên heartbeat trong khoảng thời gian hợp lệ — không phải bằng chứng động cơ hoạt động bình thường về mặt cơ học.
+
+---
+
+### 7.8. `GET /api/v1/admin/dispense/failed`
+
+**Mục đích:** Danh sách đơn hàng ở trạng thái `DISPENSE_FAILED` hoặc `NEEDS_RECONCILIATION` cần xử lý thủ công.
+
+---
