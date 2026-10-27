@@ -884,3 +884,25 @@ Frontend phải dùng `credentials: 'include'` cho tất cả fetch đến admin
 **Mục đích:** Danh sách đơn hàng ở trạng thái `DISPENSE_FAILED` hoặc `NEEDS_RECONCILIATION` cần xử lý thủ công.
 
 ---
+
+## 8. Health Check
+
+### 8.1. `GET /actuator/health`
+
+**Mục đích:** Kiểm tra sức khỏe tổng thể của backend (Spring Boot Actuator).
+
+**Phân quyền:** Public hoặc restricted — cấu hình theo môi trường.
+
+**Response 200 OK:**
+
+```json
+{
+  "status": "UP",
+  "components": {
+    "db": { "status": "UP" },
+    "mqtt": { "status": "UP" }
+  }
+}
+```
+
+---
