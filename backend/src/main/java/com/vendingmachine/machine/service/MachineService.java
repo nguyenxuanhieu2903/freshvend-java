@@ -22,21 +22,11 @@ public class MachineService {
     }
 
     public MachineResponseDto getMachineByCode(String machineCode) {
-        Machine machine = machineRepository.findByMachineCode(machineCode)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        ErrorCode.MACHINE_NOT_FOUND,
-                        "Máy bán hàng không tồn tại."
-                ));
-        return MachineResponseDto.fromEntity(machine);
+        return MachineResponseDto.fromEntity(findMachineOrThrow(machineCode));
     }
 
     public Machine getActiveMachineEntity(String machineCode) {
-        Machine machine = machineRepository.findByMachineCode(machineCode)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        ErrorCode.MACHINE_NOT_FOUND,
-                        "Máy bán hàng không tồn tại."
-                ));
-
+        Machine machine = findMachineOrThrow(machineCode);
         if (machine.getStatus() != MachineStatus.ACTIVE) {
             throw new BusinessException(
                     ErrorCode.MACHINE_INACTIVE,
@@ -46,5 +36,13 @@ public class MachineService {
         }
 
         return machine;
+    }
+
+    private Machine findMachineOrThrow(String machineCode) {
+        return machineRepository.findByMachineCode(machineCode)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        ErrorCode.MACHINE_NOT_FOUND,
+                        "Máy bán hàng không tồn tại."
+                ));
     }
 }
