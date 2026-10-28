@@ -906,3 +906,28 @@ Frontend phải dùng `credentials: 'include'` cho tất cả fetch đến admin
 ```
 
 ---
+
+## 9. Các mục TBD cần xác nhận
+
+| # | Nội dung TBD | Lý do chưa chốt | Giai đoạn cần giải quyết |
+|---|---|---|---|
+| 1 | Cấu trúc webhook body của payment provider | Phụ thuộc vào provider được chọn | Giai đoạn 5 |
+| 2 | Cơ chế xác thực webhook (signature header) | Phụ thuộc vào provider được chọn | Giai đoạn 5 |
+| 3 | Format dữ liệu QR thanh toán (`paymentQrData`) | Phụ thuộc vào VietQR / provider format | Giai đoạn 5 |
+| 4 | Production backend URL và domain | Phụ thuộc vào hosting chọn | Giai đoạn 8 |
+| 5 | Rate limiting policy chi tiết (login, order creation, status polling) | Cần đánh giá sau khi có backend thật | Giai đoạn 2-4 |
+| 6 | `Domain` attribute trong cookie nếu cần subdomain sharing | Phụ thuộc vào cấu hình DNS production | Giai đoạn 8 |
+
+---
+
+## 10. Lưu ý quan trọng về bảo mật
+
+1. **Giá tiền:** Frontend **không** gửi giá — backend tính từ database.
+2. **Slot number:** Frontend **không** gửi slot number để ra lệnh — backend lấy từ cấu hình sản phẩm.
+3. **Trạng thái thanh toán:** Chỉ backend xác nhận dựa trên webhook thật — không có endpoint public nào cho phép set `PAID`.
+4. **UUID làm order ID:** Tránh sequential integer ID để ngăn enumeration attack.
+5. **CORS:** Chỉ cho phép origin của frontend — không dùng `*`. Bắt buộc `allowCredentials: true` cho cookie.
+6. **Admin endpoints:** Phải kiểm tra cookie và `tokenVersion` trên backend — frontend ẩn trang admin là không đủ.
+7. **CSRF:** Mọi request mutating đến admin phải kèm `X-Requested-With: XMLHttpRequest`.
+8. **Token:** JWT không xuất hiện trong response body, không lưu localStorage, không log trong server.
+9. **Logout cookie:** Phải khớp đầy đủ `Path`, `SameSite`, `Secure` khi xóa cookie.
