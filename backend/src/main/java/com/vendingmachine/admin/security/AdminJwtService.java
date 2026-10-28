@@ -128,7 +128,7 @@ public class AdminJwtService {
             Number exp = (Number) claims.get("exp");
 
             long now = Instant.now().getEpochSecond();
-            if (exp == null || now > exp.longValue()) {
+            if (exp == null || now >= exp.longValue()) {
                 log.info("Token expired for user: {}", username);
                 return null;
             }
