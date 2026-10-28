@@ -175,3 +175,76 @@ Invoke-RestMethod -Uri "http://localhost:8080/api/v1/simulation/device/status" -
 ```
 
 ---
+
+## 6. Quy Trình Kiểm Thử E2E Từng Bước (Step-by-Step E2E Scenarios)
+
+Dữ liệu khởi tạo mặc định trong PostgreSQL (từ Flyway `V2__seed_data.sql`):
+- Máy: `VM001`
+- Khe 1 (`550e8400-e29b-41d4-a716-446655440001`): Nước suối Aqua 500ml — Giá: `8,000 VND` — Tồn kho: `5`
+- Khe 2 (`550e8400-e29b-41d4-a716-446655440002`): Snack Lay's — Giá: `15,000 VND` — Tồn kho: `3`
+- Khe 3 (`550e8400-e29b-41d4-a716-446655440003`): Kẹo Doublemint — Giá: `5,000 VND` — Tồn kho: `0` (Hết hàng)
+
+---
+
+### Kịch Bản 1: Luồng Thành Công Hoàn Toàn (Happy Path — SUCCESS)
+
+#### Bước 1.1: Tạo đơn hàng qua giao diện hoặc API
+- **Cách 1 (Giao diện Web):**
+  1. Mở trình duyệt tại `http://localhost:5173`.
+  2. Bấm vào nút **"Chọn mua"** tại món *Nước suối Aqua 500ml*.
+  3. Bấm **"Thanh toán ngay"** trên giỏ hàng, sau đó bấm **"Xác nhận tạo đơn"**.
+  4. Giao diện hiển thị Modal với Mã đơn hàng, VietQR, và mã nội dung chuyển khoản (VD: `VM-ABC12345`).
+- **Cách 2 (PowerShell):**
+  ```powershell
+  $orderReq = @{
+      machineId = "VM001"
+      productId = "550e8400-e29b-41d4-a716-446655440001"
+      quantity = 1
+  } | ConvertTo-Json
+
+  $orderRes = Invoke-RestMethod -Uri "http://localhost:8080/api/v1/orders" -Method Post -ContentType "application/json" -Body $orderReq
+  $orderId = $orderRes.data.orderId
+  $transferRef = $orderRes.data.transferReference
+  $amount = $orderRes.data.totalAmountVnd
+  Write-Host "Created Order: $orderId | Ref: $transferRef | Amount: $amount"
+  ```
+
+#### Bước 1.2: Kiểm tra Database sau khi tạo đơn
+```powershell
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U vending_user -d vending_machine_dev -h localhost -c "
+SELECT public_order_code, status, total_amount_vnd, transfer_reference, payment_expires_at 
+FROM orders WHERE id = '$orderId';
+SELECT name, slot_number, stock_quantity, reserved_quantity 
+FROM products WHERE id = '550e8400-e29b-41d4-a716-446655440001';"
+```
+*Kết quả kỳ vọng:*
+- `orders.status` = `PENDING_PAYMENT`
+- `products.stock_quantity` = `5`, `products.reserved_quantity` = `1` (Đã giữ chỗ, chưa trừ kho vật lý).
+
+#### Bước 1.3: Đảm bảo Simulator đang ở kịch bản SUCCESS
+```powershell
+$modeReq = @{ scenario = "SUCCESS"; async = $false } | ConvertTo-Json
+Invoke-RestMethod -Uri "http://localhost:8080/api/v1/simulation/device/mode" -Method Post -ContentType "application/json" -Body $modeReq
+```
+
+#### Bước 1.4: Gửi Webhook Thanh Toán SePay Mô Phỏng
+```powershell
+$txId = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+$webhookPayload = @{
+    id = $txId
+    gateway = "MBBank"
+    transactionDate = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+    accountNumber = "DEMO123456"
+    transferType = "in"
+    transferAmount = $amount
+    content = "Thanh toan $transferRef"
+    code = $transferRef
+} | ConvertTo-Json
+
+$headers = @{ "Authorization" = "Apikey test-sepay-secret-key" }
+
+$webhookRes = Invoke-RestMethod -Uri "http://localhost:8080/api/v1/webhooks/payments/sepay" `
+    -Method Post -Headers $headers -ContentType "application/json" -Body $webhookPayload
+
+$webhookRes | ConvertTo-Json
+```
