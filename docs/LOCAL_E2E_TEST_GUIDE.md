@@ -96,3 +96,51 @@ DISPENSE_SIMULATOR_ENABLED=true
 DISPENSE_SIMULATOR_ASYNC=false
 DISPENSE_SIMULATOR_DEFAULT_SCENARIO=SUCCESS
 ```
+
+### 3.2. Cấu hình Frontend (`frontend/.env`)
+
+Kiểm tra file `frontend/.env` đảm bảo trỏ đúng REST API của backend:
+
+```env
+VITE_API_BASE_URL=http://localhost:8080
+```
+
+---
+
+## 4. Khởi Chạy Hệ Thống Trên Hai Terminal Riêng Biệt
+
+### Terminal 1: Khởi chạy Spring Boot Backend
+
+```powershell
+cd "c:\Users\ASUS\Vending Machine Prototype\backend"
+$env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-21.0.12.101-hotspot"
+$env:Path = "$env:JAVA_HOME\bin;" + $env:Path
+
+# Nạp các biến môi trường từ .env nếu cần hoặc chạy trực tiếp qua Maven Wrapper
+./mvnw spring-boot:run
+```
+
+*Chờ cho đến khi terminal hiển thị:*
+```text
+Started VendingMachineApplication in X.XXX seconds
+Registered DispenseService as listener to SimulatedDeviceAdapter
+```
+
+### Terminal 2: Khởi chạy Vite React Frontend
+
+Mở cửa sổ PowerShell thứ hai:
+
+```powershell
+cd "c:\Users\ASUS\Vending Machine Prototype\frontend"
+npm run dev
+```
+
+*Chờ cho đến khi terminal hiển thị:*
+```text
+  VITE v8.3.4  ready in XXX ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+```
+
+---
