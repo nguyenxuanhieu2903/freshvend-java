@@ -144,3 +144,34 @@ npm run dev
 ```
 
 ---
+
+## 5. Xác Minh Sức Khỏe Hệ Thống & Kết Nối Ban Đầu (Health Checks)
+
+Mở một cửa sổ PowerShell thứ ba (dùng cho lệnh gọi API và kiểm tra database):
+
+```powershell
+# 1. Kiểm tra Actuator Health của Backend
+Invoke-RestMethod -Uri "http://localhost:8080/actuator/health" -Method Get
+
+# 2. Kiểm tra thông tin máy VM001 và danh mục sản phẩm (Flyway V2 Seed Data)
+Invoke-RestMethod -Uri "http://localhost:8080/api/v1/machines/VM001/products" -Method Get
+
+# 3. Kiểm tra trạng thái Adapter Mô Phỏng
+Invoke-RestMethod -Uri "http://localhost:8080/api/v1/simulation/device/status" -Method Get
+```
+
+*Phản hồi mẫu của simulator:*
+```json
+{
+  "success": true,
+  "data": {
+    "adapterType": "SIMULATED",
+    "currentScenario": "SUCCESS",
+    "asyncMode": false,
+    "isOnline": true,
+    "disclaimer": "SIMULATION ONLY - NOT PHYSICAL HARDWARE"
+  }
+}
+```
+
+---
