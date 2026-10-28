@@ -35,6 +35,9 @@ public class AdminJwtService {
             Environment environment,
             ObjectMapper objectMapper) {
 
+        if (expirationSeconds <= 0) {
+            throw new IllegalStateException("Admin JWT expiration must be greater than zero.");
+        }
         validateSecret(secret, environment);
         this.secret = secret.trim();
         this.expirationSeconds = expirationSeconds;
