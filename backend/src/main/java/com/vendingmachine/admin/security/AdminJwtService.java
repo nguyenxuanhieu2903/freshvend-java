@@ -35,6 +35,9 @@ public class AdminJwtService {
             Environment environment,
             ObjectMapper objectMapper) {
 
+        if (expirationSeconds <= 0) {
+            throw new IllegalStateException("Admin JWT expiration must be greater than zero.");
+        }
         validateSecret(secret, environment);
         this.secret = secret.trim();
         this.expirationSeconds = expirationSeconds;
@@ -128,7 +131,7 @@ public class AdminJwtService {
             Number exp = (Number) claims.get("exp");
 
             long now = Instant.now().getEpochSecond();
-            if (exp == null || now > exp.longValue()) {
+            if (exp == null || now >= exp.longValue()) {
                 log.info("Token expired for user: {}", username);
                 return null;
             }
