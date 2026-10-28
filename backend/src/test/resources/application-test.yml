@@ -1,0 +1,62 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:vending_test_db;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    database-platform: org.hibernate.dialect.H2Dialect
+    open-in-view: false
+    show-sql: false
+  flyway:
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+app:
+  machine:
+    default-id: VM001
+  cors:
+    allowed-origin: http://localhost:5173
+  order:
+    expiration-minutes: 15
+    cleanup-interval-ms: 60000
+  payment:
+    demo-mode: true
+    provider: sepay
+    sepay:
+      api-key: "test-sepay-secret-key"
+      bank-bin: "970422"
+      bank-name: "MBBank"
+      account-number: "0345678999"
+      account-name: "TEST VENDING MACHINE"
+  dispense:
+    auto-trigger: false
+    command-timeout-seconds: 45
+    motor-run-ms: 800
+    simulator:
+      enabled: true
+      async: false
+      default-scenario: SUCCESS
+    recovery:
+      enabled: false
+      interval-ms: 10000
+      min-age-seconds: 30
+      max-age-minutes: 15
+      tagger-enabled: false
+      tagger-interval-ms: 60000
+  admin:
+    jwt:
+      secret: test-only-jwt-secret-key-32-chars-long-for-hmac256-test-profile
+      expiration-seconds: 28800
+
+
