@@ -159,9 +159,27 @@ CREATE TABLE admin_users (
         TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE inventory (
-    machine_id BIGINT NOT NULL REFERENCES machines (id),
-    product_id BIGINT NOT NULL REFERENCES products (id),
-    quantity INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0),
-    PRIMARY KEY (machine_id, product_id)
-);
+-- Indexes for performance
+CREATE INDEX idx_products_machine_id ON products (machine_id);
+
+CREATE INDEX idx_products_is_active ON products (is_active);
+
+CREATE INDEX idx_orders_machine_id ON orders (machine_id);
+
+CREATE INDEX idx_orders_status ON orders (status);
+
+CREATE INDEX idx_orders_transfer_ref ON orders (transfer_reference);
+
+CREATE INDEX idx_orders_payment_expires ON orders (payment_expires_at);
+
+CREATE INDEX idx_payment_tx_order_id ON payment_transactions (order_id);
+
+CREATE INDEX idx_payment_tx_transfer_ref ON payment_transactions (transfer_reference);
+
+CREATE INDEX idx_dispense_commands_order_id ON dispense_commands (order_id);
+
+CREATE INDEX idx_dispense_commands_machine_id ON dispense_commands (machine_id);
+
+CREATE INDEX idx_device_events_machine_id ON device_events (machine_id);
+
+CREATE INDEX idx_device_events_event_type ON device_events (event_type);
