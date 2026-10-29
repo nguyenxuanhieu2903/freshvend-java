@@ -9,7 +9,6 @@ export function formatVnd(amount: number): string {
   const integerPart = Math.floor(amount);
   return `${integerPart.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')} ₫`;
 }
-
 /**
  * Format ISO datetime string to localized Vietnamese format
  * Example: 2026-10-22T04:15:00Z -> 11:15:00 22/10/2026
@@ -35,4 +34,3 @@ export function formatDateTime(isoString?: string | null): string {
     return '—';
   }
 }
-
