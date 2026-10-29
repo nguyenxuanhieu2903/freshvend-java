@@ -78,6 +78,34 @@ CREATE TABLE order_items (
         TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 5. Payment Transactions table
+CREATE TABLE payment_transactions (
+    id UUID PRIMARY KEY,
+    provider VARCHAR(50) NOT NULL,
+    provider_transaction_id VARCHAR(100) NOT NULL,
+    order_id UUID REFERENCES orders (id),
+    amount_vnd INTEGER NOT NULL CHECK (amount_vnd > 0),
+    currency VARCHAR(10) NOT NULL DEFAULT 'VND',
+    direction VARCHAR(20) NOT NULL DEFAULT 'INCOMING',
+    transaction_status VARCHAR(50) NOT NULL,
+    transfer_reference VARCHAR(100),
+    received_at TIMESTAMP
+    WITH
+        TIME ZONE NOT NULL,
+        processed_at TIMESTAMP
+    WITH
+        TIME ZONE,
+        raw_payload TEXT,
+        verification_status VARCHAR(50) NOT NULL,
+        created_at TIMESTAMP
+    WITH
+        TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT uq_provider_transaction UNIQUE (
+            provider,
+            provider_transaction_id
+        )
+);
+
 CREATE TABLE inventory (
     machine_id BIGINT NOT NULL REFERENCES machines (id),
     product_id BIGINT NOT NULL REFERENCES products (id),
