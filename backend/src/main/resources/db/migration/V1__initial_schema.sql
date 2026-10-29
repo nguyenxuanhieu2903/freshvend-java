@@ -106,6 +106,59 @@ CREATE TABLE payment_transactions (
         )
 );
 
+-- 6. Dispense Commands table
+CREATE TABLE dispense_commands (
+    id UUID PRIMARY KEY,
+    command_id UUID NOT NULL UNIQUE,
+    order_id UUID NOT NULL REFERENCES orders (id),
+    machine_id UUID NOT NULL REFERENCES machines (id),
+    slot_number INTEGER NOT NULL CHECK (slot_number IN (1, 2, 3)),
+    status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    failure_code VARCHAR(100),
+    failure_message VARCHAR(500),
+    published_at TIMESTAMP
+    WITH
+        TIME ZONE,
+        acknowledged_at TIMESTAMP
+    WITH
+        TIME ZONE,
+        finished_at TIMESTAMP
+    WITH
+        TIME ZONE,
+        created_at TIMESTAMP
+    WITH
+        TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 7. Device Events table
+CREATE TABLE device_events (
+    id UUID PRIMARY KEY,
+    event_id UUID NOT NULL UNIQUE,
+    machine_id UUID NOT NULL REFERENCES machines (id),
+    command_id UUID REFERENCES dispense_commands (command_id),
+    event_type VARCHAR(50) NOT NULL,
+    slot_number INTEGER,
+    payload TEXT,
+    created_at TIMESTAMP
+    WITH
+        TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 8. Admin Users table
+CREATE TABLE admin_users (
+    id UUID PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    token_version INTEGER NOT NULL DEFAULT 1,
+    created_at TIMESTAMP
+    WITH
+        TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP
+    WITH
+        TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE inventory (
     machine_id BIGINT NOT NULL REFERENCES machines (id),
     product_id BIGINT NOT NULL REFERENCES products (id),
