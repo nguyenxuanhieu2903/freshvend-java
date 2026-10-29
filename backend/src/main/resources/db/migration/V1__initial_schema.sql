@@ -34,6 +34,37 @@ CREATE TABLE products (
         CONSTRAINT uq_machine_slot UNIQUE (machine_id, slot_number)
 );
 
+-- 3. Orders table
+CREATE TABLE orders (
+    id UUID PRIMARY KEY,
+    public_order_code VARCHAR(50) NOT NULL UNIQUE,
+    machine_id UUID NOT NULL REFERENCES machines (id),
+    product_id UUID NOT NULL REFERENCES products (id),
+    quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity = 1),
+    unit_price_vnd INTEGER NOT NULL CHECK (unit_price_vnd > 0),
+    total_amount_vnd INTEGER NOT NULL CHECK (total_amount_vnd > 0),
+    transfer_reference VARCHAR(50) NOT NULL UNIQUE,
+    status VARCHAR(50) NOT NULL DEFAULT 'PENDING_PAYMENT',
+    payment_expires_at TIMESTAMP
+    WITH
+        TIME ZONE NOT NULL,
+        paid_at TIMESTAMP
+    WITH
+        TIME ZONE,
+        dispensing_started_at TIMESTAMP
+    WITH
+        TIME ZONE,
+        completed_at TIMESTAMP
+    WITH
+        TIME ZONE,
+        created_at TIMESTAMP
+    WITH
+        TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP
+    WITH
+        TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE inventory (
     machine_id BIGINT NOT NULL REFERENCES machines (id),
     product_id BIGINT NOT NULL REFERENCES products (id),
