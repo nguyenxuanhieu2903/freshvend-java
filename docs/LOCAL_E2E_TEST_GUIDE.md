@@ -248,3 +248,62 @@ $webhookRes = Invoke-RestMethod -Uri "http://localhost:8080/api/v1/webhooks/paym
 
 $webhookRes | ConvertTo-Json
 ```
+
+#### Bước 1.5: Xác minh kết quả tự động xuất hàng
+1. **Trên Giao diện UI:**
+   - Trong vòng 3 giây (chu kỳ polling), modal tự động chuyển từ chờ thanh toán sang:
+     - Biểu tượng spinner: **"Máy đang thực hiện nhả hàng..."**
+     - Sau đó chuyển sang icon xanh thành công: **"Đã xuất hàng thành công! Sản phẩm đã được đưa ra khay nhận hàng bên dưới."**
+2. **Trong Database:**
+   ```powershell
+   & "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U vending_user -d vending_machine_dev -h localhost -c "
+   SELECT status, paid_at, dispensing_started_at, completed_at FROM orders WHERE id = '$orderId';
+   SELECT status, attempt_count, published_at, finished_at FROM dispense_commands WHERE order_id = '$orderId';
+   SELECT event_type, slot_number, payload FROM device_events WHERE command_id = (SELECT command_id FROM dispense_commands WHERE order_id = '$orderId');
+   SELECT name, stock_quantity, reserved_quantity FROM products WHERE id = '550e8400-e29b-41d4-a716-446655440001';"
+   ```
+   *Kết quả kỳ vọng:*
+   - `orders.status` = `COMPLETED`
+   - `dispense_commands.status` = `COMPLETED`
+   - `device_events` ghi nhận 2 sự kiện: `COMMAND_ACCEPTED` và `DISPENSE_RESULT` (với `result: "SUCCESS"`).
+   - `products.stock_quantity` giảm từ `5` xuống `4`, `products.reserved_quantity` giảm từ `1` xuống `0`.
+
+---
+
+### Kịch Bản 2: Xuất Hàng Thất Bại Có Xác Nhận (Confirmed Failure — MOTOR_TIMEOUT / Kẹt hàng)
+
+#### Bước 2.1: Chuyển Simulator sang kịch bản FAILURE
+```powershell
+$modeReq = @{ scenario = "FAILURE"; async = $false } | ConvertTo-Json
+Invoke-RestMethod -Uri "http://localhost:8080/api/v1/simulation/device/mode" -Method Post -ContentType "application/json" -Body $modeReq
+```
+
+#### Bước 2.2: Tạo đơn hàng mới và gửi webhook
+```powershell
+# 1. Tạo đơn hàng cho Nước suối Aqua
+$orderRes = Invoke-RestMethod -Uri "http://localhost:8080/api/v1/orders" -Method Post -ContentType "application/json" -Body (@{
+    machineId = "VM001"
+    productId = "550e8400-e29b-41d4-a716-446655440001"
+    quantity = 1
+} | ConvertTo-Json)
+
+$orderId = $orderRes.data.orderId
+$transferRef = $orderRes.data.transferReference
+$amount = $orderRes.data.totalAmountVnd
+
+# 2. Gửi Webhook
+$txId = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+$webhookPayload = @{
+    id = $txId
+    gateway = "MBBank"
+    transactionDate = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+    accountNumber = "DEMO123456"
+    transferType = "in"
+    transferAmount = $amount
+    content = "Thanh toan $transferRef"
+    code = $transferRef
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "http://localhost:8080/api/v1/webhooks/payments/sepay" `
+    -Method Post -Headers @{ "Authorization" = "Apikey test-sepay-secret-key" } -ContentType "application/json" -Body $webhookPayload
+```
