@@ -307,3 +307,51 @@ $webhookPayload = @{
 Invoke-RestMethod -Uri "http://localhost:8080/api/v1/webhooks/payments/sepay" `
     -Method Post -Headers @{ "Authorization" = "Apikey test-sepay-secret-key" } -ContentType "application/json" -Body $webhookPayload
 ```
+
+#### Bước 2.3: Kiểm tra Database & UI
+- **Giao diện UI:** Hiển thị **"Sự cố xuất hàng"** cùng hướng dẫn liên hệ tổng đài hỗ trợ.
+- **Trong Database:**
+  ```powershell
+  & "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U vending_user -d vending_machine_dev -h localhost -c "
+  SELECT status FROM orders WHERE id = '$orderId';
+  SELECT status, failure_code, failure_message FROM dispense_commands WHERE order_id = '$orderId';
+  SELECT stock_quantity, reserved_quantity FROM products WHERE id = '550e8400-e29b-41d4-a716-446655440001';"
+  ```
+  *Bảo toàn kho:*
+  - `orders.status` = `DISPENSE_FAILED`
+  - `dispense_commands.failure_code` = `MOTOR_TIMEOUT`
+  - `stock_quantity` **KHÔNG BỊ TRỪ** (vẫn giữ nguyên `4`), `reserved_quantity` được giải phóng về `0`.
+
+---
+
+### Kịch Bản 3: Kết Quả Bất Định (UNCERTAIN — Thiết bị khởi động lại trong khi quay động cơ)
+
+#### Bước 3.1: Chuyển Simulator sang kịch bản UNCERTAIN
+```powershell
+$modeReq = @{ scenario = "UNCERTAIN"; async = $false } | ConvertTo-Json
+Invoke-RestMethod -Uri "http://localhost:8080/api/v1/simulation/device/mode" -Method Post -ContentType "application/json" -Body $modeReq
+```
+
+#### Bước 3.2: Tạo đơn và thanh toán
+```powershell
+$orderRes = Invoke-RestMethod -Uri "http://localhost:8080/api/v1/orders" -Method Post -ContentType "application/json" -Body (@{
+    machineId = "VM001"
+    productId = "550e8400-e29b-41d4-a716-446655440001"
+    quantity = 1
+} | ConvertTo-Json)
+
+$orderId = $orderRes.data.orderId
+$transferRef = $orderRes.data.transferReference
+$amount = $orderRes.data.totalAmountVnd
+
+Invoke-RestMethod -Uri "http://localhost:8080/api/v1/webhooks/payments/sepay" `
+    -Method Post -Headers @{ "Authorization" = "Apikey test-sepay-secret-key" } -ContentType "application/json" -Body (@{
+        id = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+        gateway = "MBBank"
+        transactionDate = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+        accountNumber = "DEMO123456"
+        transferType = "in"
+        transferAmount = $amount
+        code = $transferRef
+    } | ConvertTo-Json)
+```
