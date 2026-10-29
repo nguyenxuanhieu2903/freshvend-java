@@ -65,6 +65,19 @@ CREATE TABLE orders (
         TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 4. Order Items table
+CREATE TABLE order_items (
+    id UUID PRIMARY KEY,
+    order_id UUID NOT NULL REFERENCES orders (id) ON DELETE CASCADE,
+    product_id UUID NOT NULL REFERENCES products (id),
+    quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
+    unit_price_vnd INTEGER NOT NULL CHECK (unit_price_vnd > 0),
+    subtotal_vnd INTEGER NOT NULL CHECK (subtotal_vnd > 0),
+    created_at TIMESTAMP
+    WITH
+        TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE inventory (
     machine_id BIGINT NOT NULL REFERENCES machines (id),
     product_id BIGINT NOT NULL REFERENCES products (id),
