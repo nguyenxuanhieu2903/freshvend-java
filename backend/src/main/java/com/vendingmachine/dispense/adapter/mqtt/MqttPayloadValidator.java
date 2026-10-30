@@ -14,6 +14,8 @@ import java.time.Instant;
 @Component
 public class MqttPayloadValidator {
 
+    private static final String DISPENSE_ACTION = "DISPENSE";
+
     private static final Logger log = LoggerFactory.getLogger(MqttPayloadValidator.class);
 
     /**
@@ -26,6 +28,10 @@ public class MqttPayloadValidator {
         }
         if (command.getCommandId() == null) {
             log.warn("Command rejected: commandId is missing");
+            return false;
+        }
+        if (!DISPENSE_ACTION.equals(command.getAction())) {
+            log.warn("Command rejected: unsupported action: {}", command.getAction());
             return false;
         }
         if (command.getMachineId() == null || command.getMachineId().isBlank()) {
