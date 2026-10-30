@@ -419,3 +419,32 @@ Invoke-RestMethod -Uri "http://localhost:8080/api/v1/webhooks/payments/sepay" `
   `orders.status` tự động chuyển sang `NEEDS_RECONCILIATION`, `dispense_commands.status` = `TIMEOUT`.
 
 ---
+
+### Kịch Bản 5: Kiểm Thử Tính Lũy Thừa (Idempotency Verification)
+
+#### 5.1. Trùng lặp Webhook Thanh toán (Duplicate Webhooks)
+Chạy gửi cùng một payload webhook (cùng `id` giao dịch) 2 lần liên tiếp:
+
+```powershell
+# Lần 1
+Invoke-RestMethod -Uri "http://localhost:8080/api/v1/webhooks/payments/sepay" `
+    -Method Post -Headers @{ "Authorization" = "Apikey test-sepay-secret-key" } -ContentType "application/json" -Body $webhookPayload
+
+# Lần 2 (ngay lập tức)
+$dupRes = Invoke-RestMethod -Uri "http://localhost:8080/api/v1/webhooks/payments/sepay" `
+    -Method Post -Headers @{ "Authorization" = "Apikey test-sepay-secret-key" } -ContentType "application/json" -Body $webhookPayload
+
+$dupRes | ConvertTo-Json
+```
+*Kết quả:* Phản hồi trả về `{"success":true,"message":"Duplicate transaction ignored"}`. Log hiển thị: `Duplicate SePay transaction ID ... received; returning idempotent success`. Chỉ duy nhất 1 bản ghi giao dịch trong bảng `payment_transactions`.
+
+#### 5.2. Gọi lại API Kích hoạt Xuất Hàng (Duplicate Dispense Trigger)
+Gọi thủ công `POST /api/v1/dispense/orders/{orderId}/trigger` khi đơn đã hoàn thành hoặc đang xử lý:
+
+```powershell
+$manualTrigger = Invoke-RestMethod -Uri "http://localhost:8080/api/v1/dispense/orders/$orderId/trigger" -Method Post
+$manualTrigger | ConvertTo-Json
+```
+*Kết quả:* Trả về `{"success":true,"data":{"orderId":"...","status":"COMPLETED","message":"Đơn hàng đã hoàn tất xuất hàng."}}`. Không phát thêm lệnh nhả hàng mới tới máy, không trừ thêm tồn kho.
+
+---
