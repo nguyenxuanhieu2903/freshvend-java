@@ -14,6 +14,11 @@ import java.time.Instant;
 @Component
 public class MqttPayloadValidator {
 
+    private static final String DISPENSE_ACTION = "DISPENSE";
+    private static final int MIN_SLOT_NUMBER = 1;
+    private static final int MAX_SLOT_NUMBER = 3;
+    private static final long MAX_FUTURE_TIMESTAMP_SECONDS = 300;
+
     private static final Logger log = LoggerFactory.getLogger(MqttPayloadValidator.class);
 
     /**
@@ -28,11 +33,16 @@ public class MqttPayloadValidator {
             log.warn("Command rejected: commandId is missing");
             return false;
         }
+        if (!DISPENSE_ACTION.equals(command.getAction())) {
+            log.warn("Command rejected: unsupported action: {}", command.getAction());
+            return false;
+        }
         if (command.getMachineId() == null || command.getMachineId().isBlank()) {
             log.warn("Command rejected: machineId is missing");
             return false;
         }
-        if (command.getSlotNumber() == null || command.getSlotNumber() < 1 || command.getSlotNumber() > 3) {
+        if (command.getSlotNumber() == null || command.getSlotNumber() < MIN_SLOT_NUMBER
+                || command.getSlotNumber() > MAX_SLOT_NUMBER) {
             log.warn("Command rejected: slotNumber must be between 1 and 3, got: {}", command.getSlotNumber());
             return false;
         }
@@ -55,7 +65,13 @@ public class MqttPayloadValidator {
             log.warn("Inbound event rejected: eventType is missing");
             return false;
         }
-        if (event.getTimestamp() != null && event.getTimestamp().isAfter(Instant.now().plusSeconds(300))) {
+        if (event.getSlotNumber() != null && (event.getSlotNumber() < MIN_SLOT_NUMBER
+                || event.getSlotNumber() > MAX_SLOT_NUMBER)) {
+            log.warn("Inbound event rejected: slotNumber must be between 1 and 3, got: {}", event.getSlotNumber());
+            return false;
+        }
+        if (event.getTimestamp() != null
+                && event.getTimestamp().isAfter(Instant.now().plusSeconds(MAX_FUTURE_TIMESTAMP_SECONDS))) {
             log.warn("Inbound event rejected: timestamp is in the future");
             return false;
         }

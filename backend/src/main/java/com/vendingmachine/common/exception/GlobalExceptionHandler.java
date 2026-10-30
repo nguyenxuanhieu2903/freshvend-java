@@ -66,6 +66,7 @@ public class GlobalExceptionHandler {
 
         String details = ex.getBindingResult().getFieldErrors().stream()
                 .map(FieldError::getDefaultMessage)
+                .filter(message -> message != null && !message.isBlank())
                 .collect(Collectors.joining("; "));
         String message = details.isEmpty() ? "Dữ liệu không hợp lệ. Vui lòng thử lại." : details;
         log.warn("Validation failed: {} (RequestId: {})", message, requestId);
