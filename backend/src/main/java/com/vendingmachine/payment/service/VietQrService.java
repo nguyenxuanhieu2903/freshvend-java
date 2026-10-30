@@ -3,6 +3,7 @@ package com.vendingmachine.payment.service;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
+import java.net.URLEncoder;
 
 /**
  * Service to generate NAPAS / VietQR EMVCo dynamic QR code strings.
@@ -67,10 +68,14 @@ public class VietQrService {
      */
     public String generateSepayQrUrl(String bankName, String accountNumber, int amountVnd, String transferReference) {
         return String.format("https://qr.sepay.vn/img?acc=%s&bank=%s&amount=%d&des=%s",
-                accountNumber != null ? accountNumber : "",
-                bankName != null ? bankName : "",
+                encodeQueryParameter(accountNumber),
+                encodeQueryParameter(bankName),
                 amountVnd,
-                transferReference != null ? transferReference : "");
+                encodeQueryParameter(transferReference));
+    }
+
+    private static String encodeQueryParameter(String value) {
+        return URLEncoder.encode(value != null ? value : "", StandardCharsets.UTF_8);
     }
 
     private static String tlv(String tag, String value) {
