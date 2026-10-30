@@ -61,6 +61,10 @@ public class MqttPayloadValidator {
             log.warn("Inbound event rejected: eventType is missing");
             return false;
         }
+        if (event.getSlotNumber() != null && (event.getSlotNumber() < 1 || event.getSlotNumber() > 3)) {
+            log.warn("Inbound event rejected: slotNumber must be between 1 and 3, got: {}", event.getSlotNumber());
+            return false;
+        }
         if (event.getTimestamp() != null && event.getTimestamp().isAfter(Instant.now().plusSeconds(300))) {
             log.warn("Inbound event rejected: timestamp is in the future");
             return false;
