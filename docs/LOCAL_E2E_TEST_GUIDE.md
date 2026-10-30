@@ -355,3 +355,67 @@ Invoke-RestMethod -Uri "http://localhost:8080/api/v1/webhooks/payments/sepay" `
         code = $transferRef
     } | ConvertTo-Json)
 ```
+
+#### Bước 3.3: Kiểm tra tính bất biến kho khi kết quả bất định
+```powershell
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U vending_user -d vending_machine_dev -h localhost -c "
+SELECT status FROM orders WHERE id = '$orderId';
+SELECT status, failure_code FROM dispense_commands WHERE order_id = '$orderId';
+SELECT stock_quantity, reserved_quantity FROM products WHERE id = '550e8400-e29b-41d4-a716-446655440001';"
+```
+*Kết quả kỳ vọng:*
+- `orders.status` = `NEEDS_RECONCILIATION`
+- `dispense_commands.status` = `UNCERTAIN`
+- `products.stock_quantity` và `reserved_quantity` **ĐƯỢC GIỮ NGUYÊN HOÀN TOÀN** (`reserved_quantity` = 1) để nhân viên kỹ thuật kiểm tra thực tế tại khay, không tự tiện hoàn kho hay trừ kho khi chưa rõ sản phẩm đã rơi hay chưa.
+- **UI:** Hiển thị màn hình **"Cần đối soát giao dịch"**.
+
+---
+
+### Kịch Bản 4: Quá Hạn Phản Hồi Từ Thiết Bị (TIMEOUT Handling)
+
+#### Bước 4.1: Chuyển Simulator sang kịch bản TIMEOUT
+```powershell
+$modeReq = @{ scenario = "TIMEOUT"; async = $false } | ConvertTo-Json
+Invoke-RestMethod -Uri "http://localhost:8080/api/v1/simulation/device/mode" -Method Post -ContentType "application/json" -Body $modeReq
+```
+
+#### Bước 4.2: Tạo đơn và thanh toán
+```powershell
+$orderRes = Invoke-RestMethod -Uri "http://localhost:8080/api/v1/orders" -Method Post -ContentType "application/json" -Body (@{
+    machineId = "VM001"
+    productId = "550e8400-e29b-41d4-a716-446655440001"
+    quantity = 1
+} | ConvertTo-Json)
+
+$orderId = $orderRes.data.orderId
+$transferRef = $orderRes.data.transferReference
+$amount = $orderRes.data.totalAmountVnd
+
+Invoke-RestMethod -Uri "http://localhost:8080/api/v1/webhooks/payments/sepay" `
+    -Method Post -Headers @{ "Authorization" = "Apikey test-sepay-secret-key" } -ContentType "application/json" -Body (@{
+        id = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+        gateway = "MBBank"
+        transactionDate = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+        accountNumber = "DEMO123456"
+        transferType = "in"
+        transferAmount = $amount
+        code = $transferRef
+    } | ConvertTo-Json)
+```
+
+#### Bước 4.3: Quan sát tiến trình Timeout của Scheduled Task
+- Trong kịch bản này, thiết bị mô phỏng chỉ gửi `COMMAND_ACCEPTED` và cố tình không gửi `DISPENSE_RESULT`.
+- Background task `checkAndHandleTimeouts` chạy mỗi 5 giây (`app.dispense.timeout-check-interval-ms`).
+- Sau 45 giây (`app.dispense.command-timeout-seconds`), backend ghi nhận cảnh báo:
+  ```text
+  WARN c.v.d.service.DispenseServiceImpl : DispenseCommand ... timed out after 45 seconds. Transitioning to TIMEOUT / NEEDS_RECONCILIATION
+  ```
+- Kiểm tra database sau 45s:
+  ```powershell
+  & "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U vending_user -d vending_machine_dev -h localhost -c "
+  SELECT status FROM orders WHERE id = '$orderId';
+  SELECT status, failure_code, failure_message FROM dispense_commands WHERE order_id = '$orderId';"
+  ```
+  `orders.status` tự động chuyển sang `NEEDS_RECONCILIATION`, `dispense_commands.status` = `TIMEOUT`.
+
+---
