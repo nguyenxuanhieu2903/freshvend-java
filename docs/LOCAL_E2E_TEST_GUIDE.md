@@ -448,3 +448,24 @@ $manualTrigger | ConvertTo-Json
 *Kết quả:* Trả về `{"success":true,"data":{"orderId":"...","status":"COMPLETED","message":"Đơn hàng đã hoàn tất xuất hàng."}}`. Không phát thêm lệnh nhả hàng mới tới máy, không trừ thêm tồn kho.
 
 ---
+
+### Kịch Bản 6: Xác Minh Bảo Mật Khi Vô Hiệu Hóa Simulator (Simulator Disabled)
+
+Trên môi trường Production, không được phép nạp các simulation endpoints.
+1. Thử nghiệm tắt simulator bằng cách đặt biến môi trường trong Terminal Backend:
+   ```powershell
+   $env:DISPENSE_SIMULATOR_ENABLED = "false"
+   ./mvnw spring-boot:run
+   ```
+2. Thử truy cập endpoint kiểm tra simulator:
+   ```powershell
+   try {
+       Invoke-RestMethod -Uri "http://localhost:8080/api/v1/simulation/device/status" -Method Get
+   } catch {
+       Write-Host "HTTP Status:" $_.Exception.Response.StatusCode.value__
+       $_.Exception.Response | Format-List
+   }
+   ```
+   *Kết quả:* Server trả về chính xác **HTTP 404 NOT_FOUND** (`{"error":{"code":"NOT_FOUND","message":"Đường dẫn tài nguyên không tồn tại."}}`). Kẻ xấu không thể giả mạo sự kiện hay thay đổi kịch bản máy.
+
+---
