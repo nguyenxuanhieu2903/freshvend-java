@@ -6,21 +6,18 @@ interface InvalidMachinePageProps {
   errorMessage?: string;
   onSelectMachine: (machineId: string) => void;
 }
-
 export const InvalidMachinePage: React.FC<InvalidMachinePageProps> = ({
   currentMachineId,
   errorMessage,
   onSelectMachine,
 }) => {
   const [inputVal, setInputVal] = useState(currentMachineId || '');
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (inputVal.trim()) {
       onSelectMachine(inputVal.trim().toUpperCase());
     }
   };
-
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-md bg-white rounded-3xl border border-brand-border p-6 sm:p-8 text-center shadow-card">
