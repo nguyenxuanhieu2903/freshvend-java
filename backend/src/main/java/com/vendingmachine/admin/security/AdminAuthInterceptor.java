@@ -98,7 +98,7 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
 
         // 2. Fallback to Authorization: Bearer <token> (for API/integration test clients)
         String authHeader = request.getHeader("Authorization");
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+        if (authHeader != null && authHeader.regionMatches(true, 0, "Bearer ", 0, 7)) {
             return authHeader.substring(7).trim();
         }
 

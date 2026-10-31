@@ -22,6 +22,7 @@ app:
     demo-mode: ${PAYMENT_DEMO_MODE:true}
     provider: sepay
     sepay:
+      # In demo mode (PAYMENT_DEMO_MODE=true), empty api-key allows simulated webhooks without secret
       api-key: ${SEPAY_API_KEY:}
       bank-bin: ${SEPAY_BANK_BIN:970422}
       bank-name: ${SEPAY_BANK_NAME:MBBank}
