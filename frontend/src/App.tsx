@@ -11,7 +11,6 @@ export const AdminRouter: React.FC = () => {
   const [currentPath, setCurrentPath] = useState<string>(() =>
     typeof window !== 'undefined' ? window.location.pathname : '/admin'
   );
-
   useEffect(() => {
     const handlePopState = () => {
       setCurrentPath(window.location.pathname);
@@ -19,14 +18,12 @@ export const AdminRouter: React.FC = () => {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
-
   const navigate = (path: string) => {
     if (typeof window !== 'undefined' && window.history) {
       window.history.pushState({}, '', path);
     }
     setCurrentPath(path);
   };
-
   // If not authenticated, always show AdminLoginPage
   if (!isAuthenticated) {
     return (
