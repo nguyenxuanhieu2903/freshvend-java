@@ -13,11 +13,9 @@ import { ApiError } from '../types/api';
 import { getMachine, getProductCatalog } from '../services/api';
 import { useCart } from '../context/CartContext';
 import { RefreshCw, AlertCircle } from 'lucide-react';
-
 interface CustomerOrderPageProps {
   initialMachineId?: string;
 }
-
 export const CustomerOrderPage: React.FC<CustomerOrderPageProps> = ({ initialMachineId }) => {
   const { setIsCartOpen } = useCart();
 
