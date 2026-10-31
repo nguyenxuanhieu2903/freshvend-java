@@ -469,3 +469,56 @@ Trên môi trường Production, không được phép nạp các simulation end
    *Kết quả:* Server trả về chính xác **HTTP 404 NOT_FOUND** (`{"error":{"code":"NOT_FOUND","message":"Đường dẫn tài nguyên không tồn tại."}}`). Kẻ xấu không thể giả mạo sự kiện hay thay đổi kịch bản máy.
 
 ---
+
+### Kịch Bản 7: Reset Trạng Thái Bộ Nhớ Của Simulator
+
+Khi cần làm mới bộ nhớ đệm chống trùng lệnh của Simulator (tương đương xóa NVS flash trên ESP32):
+
+```powershell
+Invoke-RestMethod -Uri "http://localhost:8080/api/v1/simulation/device/reset" -Method Post
+```
+*Kết quả:* Server trả về `{"success":true,"data":{"message":"Simulator NVS state cleared successfully."}}`.
+
+---
+
+## 7. Bảng Tổng Hợp Kiểm Tra Trạng Thái & Lệnh SQL Tra Cứu Nhanh
+
+| Trạng thái Order | Trạng thái DispenseCommand | Stock Quantity | Reserved Quantity | Ý nghĩa nghiệp vụ |
+| :--- | :--- | :--- | :--- | :--- |
+| `PENDING_PAYMENT` | *(chưa tạo)* | Không đổi | `+1` | Chờ khách quét mã VietQR |
+| `PAID` / `DISPENSING` | `PENDING` / `PUBLISHED` / `ACKNOWLEDGED` | Không đổi | `1` | Đã nhận tiền, đang quay động cơ |
+| `COMPLETED` | `COMPLETED` | `-1` | `0` (xóa giữ chỗ) | Đã nhả hàng ra khay thành công |
+| `DISPENSE_FAILED` | `FAILED` / `REJECTED` | Không đổi | `0` (hoàn trả) | Lỗi động cơ/kẹt hàng; nhả giữ chỗ |
+| `NEEDS_RECONCILIATION` | `UNCERTAIN` / `TIMEOUT` | Không đổi | `1` (giữ nguyên) | Sự cố bất định; giữ nguyên để đối soát |
+| `EXPIRED` | *(không có)* | Không đổi | `0` (hoàn trả) | Hết 15 phút chưa thanh toán |
+
+### Các câu lệnh SQL hữu ích để theo dõi trực tiếp trong quá trình test:
+
+```sql
+-- 1. Xem 5 đơn hàng gần nhất
+SELECT id, public_order_code, status, total_amount_vnd, transfer_reference, created_at, paid_at, completed_at
+FROM orders 
+ORDER BY created_at DESC LIMIT 5;
+
+-- 2. Xem các lệnh xuất hàng tương ứng
+SELECT command_id, order_id, slot_number, status, attempt_count, failure_code, published_at, finished_at
+FROM dispense_commands 
+ORDER BY created_at DESC LIMIT 5;
+
+-- 3. Xem các sự kiện từ thiết bị mô phỏng
+SELECT event_id, command_id, event_type, slot_number, created_at, payload
+FROM device_events 
+ORDER BY created_at DESC LIMIT 10;
+
+-- 4. Xem lịch sử giao dịch webhook SePay
+SELECT provider_transaction_id, order_id, amount_vnd, verification_status, transaction_status, received_at
+FROM payment_transactions 
+ORDER BY received_at DESC LIMIT 5;
+
+-- 5. Xem tồn kho và lượng đang giữ chỗ của từng khe hàng
+SELECT slot_number, name, price_vnd, stock_quantity, reserved_quantity, (stock_quantity - reserved_quantity) AS available_stock
+FROM products 
+ORDER BY slot_number ASC;
+```
+
+---
