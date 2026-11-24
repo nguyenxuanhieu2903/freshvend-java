@@ -225,3 +225,179 @@
     -webkit-mask-composite:xor; mask-composite:exclude;
   }
   .dock{ position:relative; }
+
+   /* ── hero copy (z 4) ─────────────────────────────────────────────────── */
+  .headline{
+    position:absolute; z-index:4;
+    left:calc(46 * var(--u)); top:calc(202 * var(--u));
+    font-size:calc(63 * var(--u)); line-height:calc(65 * var(--u));
+    font-weight:300; letter-spacing:calc(-0.4 * var(--u));
+    color:var(--ink);
+  }
+  /* No overflow clip: cropping a 63u face to wipe it in cuts the descenders
+     of "Step" and "living" at the moment they land. The padding stays even
+     though the clip is gone — it set the two lines' metrics, and removing it
+     would shift line two. */
+  .headline span{ display:block; padding-bottom:.04em; }
+  .headline span i{ display:inline-block; font-style:normal; }
+
+  .lede{
+    position:absolute; z-index:4;
+    left:calc(520 * var(--u)); top:calc(196 * var(--u));
+    width:calc(208 * var(--u));
+    font-size:calc(16.5 * var(--u)); line-height:calc(22 * var(--u));
+    font-weight:300; color:var(--ink-soft);
+  }
+
+ /* ── liquid-metal controls ──────────────────────────────────────────
+     The original five-pass WebGL2 renderer now mounts directly in this
+     document. Its canvas, sizing, glass plate, shader constants and input
+     model are unchanged; only the iframe boundary has been removed. */
+  .pill-clip{
+    position:absolute; z-index:4;
+    left:calc(644 * var(--u)); top:calc(360 * var(--u));
+    width:calc(410 * var(--u)); height:calc(270 * var(--u));
+    margin:calc(-135 * var(--u)) 0 0 calc(-205 * var(--u));
+    clip-path:inset(calc(72 * var(--u)) calc(60 * var(--u))
+                    calc(26 * var(--u)) calc(60 * var(--u)) round calc(62 * var(--u)));
+  }
+  .pill{
+    position:absolute; inset:0; --mr:calc(150 * var(--u));
+    display:grid; place-items:center;
+  }
+
+  .liquid-stage{
+    --lu:calc(var(--h) / 516);
+    --bh:var(--h);
+    --pad:calc(900 * var(--lu));
+    position:relative;
+    width:max-content; height:max-content;
+    padding:var(--pad);
+    display:grid; place-items:center;
+    touch-action:manipulation;
+    font-family:'Lexend','Inter',-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;
+    font-optical-sizing:auto;
+    -webkit-font-smoothing:antialiased;
+  }
+  .liquid-stage--explore{ --h:calc(60.156 * var(--u)); }
+  .liquid-stage--play{ --h:calc(88.2288 * var(--u)); }
+
+  .liquid-plate{
+    position:absolute;
+    inset:var(--pad);
+    border-radius:999px;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.085), rgba(255,255,255,.014) 44%, rgba(255,255,255,0) 64%),
+      rgba(10,12,10,.42);
+    box-shadow:
+      0 calc(var(--h) * 0.08) calc(var(--h) * 0.18) rgba(0,0,0,.38),
+      0 calc(var(--h) * 0.24) calc(var(--h) * 0.50) rgba(0,0,0,.28),
+      0 calc(var(--h) * 0.48) calc(var(--h) * 0.96) rgba(0,0,0,.16),
+      inset 0 1px 0 rgba(255,255,255,.13),
+      inset 0 calc(var(--h) * -0.02) calc(var(--h) * 0.05) rgba(255,255,255,.05);
+    transition:box-shadow .38s cubic-bezier(.22,.61,.36,1),
+               background .38s cubic-bezier(.22,.61,.36,1);
+  }
+  .liquid-stage.hot .liquid-plate{
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.105), rgba(255,255,255,.02) 44%, rgba(255,255,255,0) 64%),
+      rgba(8,10,8,.50);
+    box-shadow:
+      0 calc(var(--h) * 0.10) calc(var(--h) * 0.22) rgba(0,0,0,.44),
+      0 calc(var(--h) * 0.32) calc(var(--h) * 0.66) rgba(0,0,0,.34),
+      0 calc(var(--h) * 0.66) calc(var(--h) * 1.32) rgba(0,0,0,.20),
+      inset 0 1px 0 rgba(255,255,255,.17),
+      inset 0 calc(var(--h) * -0.02) calc(var(--h) * 0.05) rgba(255,255,255,.06);
+  }
+  .liquid-fx{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+
+  .liquid-button{
+    position:relative;
+    height:var(--bh);
+    border:0; background:none;
+    border-radius:999px;
+    display:flex; align-items:center; justify-content:center;
+    color:#fff;
+    font-family:inherit; font-weight:500; line-height:1; letter-spacing:0;
+    cursor:pointer; -webkit-tap-highlight-color:transparent; outline:none;
+  }
+  .liquid-button:focus-visible{
+    outline:calc(4 * var(--lu)) solid rgba(255,255,255,.55);
+    outline-offset:calc(10 * var(--lu));
+  }
+  .liquid-button .ico{ display:block; flex:none; overflow:visible; }
+  .liquid-button .lbl{ display:block; transform:translateY(calc(2 * var(--lu))); }
+  .liquid-button--explore{
+    padding:0 calc(224 * var(--lu)) 0 calc(95 * var(--lu));
+    gap:calc(112 * var(--lu));
+    font-size:calc(140 * var(--lu));
+  }
+  .liquid-button--explore .ico{
+    width:calc(150 * var(--lu)); height:calc(150 * var(--lu));
+  }
+  .liquid-button--play{
+    width:var(--bh); height:var(--bh); padding:0;
+  }
+  .liquid-button--play .ico{
+    width:calc(176 * var(--lu)); height:calc(176 * var(--lu));
+    margin-left:calc(14 * var(--lu));
+  }
+  .liquid-button--play .lbl{ display:none; }
+  .liquid-stage.press .liquid-plate{
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.01) 44%, rgba(255,255,255,0) 64%),
+      rgba(7,9,7,.55);
+    box-shadow:
+      0 calc(var(--h) * 0.04) calc(var(--h) * 0.11) rgba(0,0,0,.46),
+      0 calc(var(--h) * 0.13) calc(var(--h) * 0.32) rgba(0,0,0,.36),
+      0 calc(var(--h) * 0.27) calc(var(--h) * 0.62) rgba(0,0,0,.22),
+      inset 0 1px 0 rgba(255,255,255,.10);
+    transition-duration:.10s;
+  }
+
+  /* ── play button (z 4) ─────────────────────────────────────────────── */
+  .play-wrap{
+    position:absolute; z-index:4; pointer-events:none;
+    left:calc(187 * var(--u)); top:calc(431 * var(--u));
+    width:calc(170 * var(--u)); height:calc(170 * var(--u));
+  }
+  .play-wrap > *{ pointer-events:auto; }
+  .play-clip{
+    position:absolute; left:50%; top:50%;
+    width:calc(396 * var(--u)); height:calc(396 * var(--u));
+    margin:calc(-198 * var(--u)) 0 0 calc(-198 * var(--u));
+    clip-path:inset(calc(131 * var(--u)) calc(106 * var(--u))
+                    calc(73 * var(--u)) calc(106 * var(--u)) round calc(92 * var(--u)));
+  }
+  .play-glass{ position:absolute; inset:0; display:grid; place-items:center; }
+  .play-ring{
+    position:absolute; inset:0; pointer-events:none;
+    border:1px solid rgba(255,255,255,.17); border-radius:50%;
+  }
+  .play-ring::after{
+    content:''; position:absolute; inset:calc(-1 * var(--u));
+    border:1px solid rgba(255,255,255,.32); border-radius:50%;
+    opacity:0; transform:scale(.86);
+    transition:opacity .7s var(--ease), transform .9s var(--ease-out);
+  }
+  .play-clip:hover ~ .play-ring::after,
+  .play-clip:focus-within ~ .play-ring::after{ opacity:1; transform:scale(1.06); }
+
+  /* ── stats (z 4) ─────────────────────────────────────────────────────── */
+  .stat{ position:absolute; z-index:4; display:flex; align-items:flex-start; gap:calc(9 * var(--u)); }
+  .stat--a{ left:calc(1250 * var(--u)); top:calc(216 * var(--u)); }
+  .stat--b{ left:calc(1346 * var(--u)); top:calc(326 * var(--u)); }
+  .stat .mark{ width:calc(32 * var(--u)); height:calc(32 * var(--u)); flex:none; margin-top:calc(2 * var(--u)); color:rgba(255,255,255,.34); }
+  .stat .mark svg{ width:100%; height:100%; display:block; }
+  .stat dt{ font-size:calc(13.5 * var(--u)); font-weight:300; color:var(--ink-soft); line-height:calc(19 * var(--u)); }
+  .stat dt, .stat dd{ text-shadow:0 calc(2 * var(--u)) calc(16 * var(--u)) rgba(10,14,8,.6); }
+  .stat .mark svg{ filter:drop-shadow(0 calc(2 * var(--u)) calc(10 * var(--u)) rgba(10,14,8,.6)); }
+  .stat dd{ font-size:calc(13.5 * var(--u)); font-weight:600; color:var(--ink); line-height:calc(21 * var(--u)); }
+
+  /* ── cards ───────────────────────────────────────────────────────────── */
+  .card{
+    position:absolute;
+    background:var(--card); border-radius:calc(46 * var(--u));
+    box-shadow:0 calc(30 * var(--u)) calc(70 * var(--u)) rgba(16,21,13,.30);
+    transition:box-shadow .8s var(--ease);
+  }
