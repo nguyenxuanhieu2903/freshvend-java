@@ -401,3 +401,119 @@
     box-shadow:0 calc(30 * var(--u)) calc(70 * var(--u)) rgba(16,21,13,.30);
     transition:box-shadow .8s var(--ease);
   }
+   /* No z-index here on purpose. z-index:auto keeps the card out of its own
+     stacking context, so the body paints under #scene (the moss drapes over
+     its shoulder) while .knob, at z 4, still sits in front of the moss. */
+  .card--about{
+    left:calc(890 * var(--u)); top:calc(200 * var(--u));
+    width:calc(330 * var(--u)); height:calc(305 * var(--u));
+  }
+  .card--stove{
+    z-index:4; will-change:transform;
+    left:calc(1237 * var(--u)); top:calc(482 * var(--u));
+    width:calc(328 * var(--u)); height:calc(310 * var(--u));
+  }
+  .card .label{
+    position:absolute; left:calc(38 * var(--u));
+    font-size:calc(15.5 * var(--u)); font-weight:300; color:var(--card-label);
+  }
+  .card h2{
+    position:absolute; left:calc(38 * var(--u));
+    font-size:calc(26.2 * var(--u)); line-height:calc(27 * var(--u));
+    font-weight:400; letter-spacing:calc(-0.5 * var(--u)); color:var(--card-ink);
+  }
+  .card--about .label{ top:calc(152 * var(--u)); }
+  .card--about h2{ top:calc(177 * var(--u)); width:calc(142 * var(--u)); }
+  .card--stove .label{ top:calc(45 * var(--u)); }
+  .card--stove h2{ top:calc(70 * var(--u)); }
+  /* Both cards carry a plate. The Field Note reads downward — label, title,
+     then the photograph — so its window sits at the foot of the card; the
+     Ethos card reads the other way up, so its window is at the head and the
+     copy sits under it. Same frame, mirrored. */
+  .card figure{
+    position:absolute; left:calc(14 * var(--u)); right:calc(14 * var(--u));
+    border-radius:calc(34 * var(--u)); overflow:hidden;
+    isolation:isolate; background:#263025;
+  }
+  .card--stove figure{ bottom:calc(14 * var(--u)); height:calc(158 * var(--u)); }
+  .card--about figure{ top:calc(14 * var(--u)); height:calc(122 * var(--u)); }
+  /* The plate is its own depth plane. It travels against the card and the
+     moss, so the landscape feels like a small window rather than a
+     photograph glued to the surface. */
+  .portal-media{
+    position:absolute; inset:calc(-9 * var(--u)); z-index:1; display:block;
+    will-change:transform,clip-path;
+    transform:
+      perspective(900px)
+      translate3d(calc(var(--px,0) * -11px),calc(var(--py,0) * -7px),0)
+      rotateY(calc(var(--px,0) * -1.4deg))
+      rotateX(calc(var(--py,0) * .9deg));
+    transform-origin:50% 50%;
+  }
+  .portal-media img{
+    width:100%; height:100%; object-fit:cover; display:block;
+    transform:scale(1.08);
+    filter:saturate(.92) contrast(1.03);
+    transition:transform 1.25s var(--ease-out),filter .8s var(--ease);
+  }
+  .card:hover .portal-media img{ transform:scale(1.13); filter:saturate(1.04) contrast(1.04); }
+  .pixel-reveal{
+    position:absolute; inset:0; z-index:3; width:100%; height:100%;
+    pointer-events:none; opacity:0; mix-blend-mode:screen;
+  }
+  /* The white scan rides the clip edge, so its centre has to travel the
+     media element's box, not the figure's — .portal-media is overscanned by
+     9u on every side to give the parallax rotation somewhere to go. Offsetting
+     by that 9u in calc() rather than by a translate percentage keeps the
+     glow on the edge at every breakpoint, whatever size the plate is. */
+  .card figure::after{
+    content:''; position:absolute; z-index:2;
+    filter:blur(calc(2 * var(--u))); opacity:0; pointer-events:none;
+    top:0; bottom:0; width:26%; left:calc(-13% - 9 * var(--u));
+    background:linear-gradient(90deg,transparent,rgba(229,244,209,.2) 42%,rgba(252,255,246,.72) 54%,transparent);
+  }
+
+  .knob-float{
+    position:absolute; z-index:4; pointer-events:none;
+    left:calc(1142 * var(--u)); top:calc(427 * var(--u));
+    width:calc(58 * var(--u)); height:calc(58 * var(--u));
+  }
+  .knob-float > *{ pointer-events:auto; }
+  .knob--about{ left:0; top:0; }
+  .card .knob, .knob--about{
+    position:absolute; z-index:4; right:calc(20 * var(--u)); bottom:calc(20 * var(--u));
+    width:calc(58 * var(--u)); height:calc(58 * var(--u));
+    border:0; border-radius:50%; cursor:pointer;
+    background:#fbfcf8; display:grid; place-items:center;
+    box-shadow:0 calc(6 * var(--u)) calc(16 * var(--u)) rgba(16,21,13,.18);
+    transition:transform .5s var(--ease-out), background .4s var(--ease);
+  }
+  .knob--about{ right:auto; bottom:auto; width:calc(58 * var(--u)); height:calc(58 * var(--u)); }
+  .card--stove .knob{ width:calc(54 * var(--u)); height:calc(54 * var(--u)); right:calc(26 * var(--u)); bottom:calc(26 * var(--u)); }
+  .card .knob svg, .knob--about svg{ width:calc(19 * var(--u)); height:calc(19 * var(--u)); display:block; color:#3f453a; }
+  .card .knob:hover, .knob--about:hover{ transform:scale(1.1) rotate(8deg); background:#fff; }
+  .card:hover{ box-shadow:0 calc(38 * var(--u)) calc(84 * var(--u)) rgba(16,21,13,.36); }
+
+  /* ── scroll cue (z 4) ────────────────────────────────────────────────── */
+  .scroll{
+    position:absolute; z-index:4;
+    left:calc(846 * var(--u)); top:calc(690 * var(--u));
+    display:flex; align-items:center; gap:calc(12 * var(--u));
+    writing-mode:vertical-rl;
+    font-size:calc(11 * var(--u)); font-weight:400;
+    letter-spacing:calc(4.4 * var(--u));
+    color:rgba(255,255,255,.5);
+    text-transform:uppercase; text-decoration:none;
+  }
+  .scroll .track{ position:relative; width:1px; height:calc(56 * var(--u)); background:rgba(255,255,255,.18); overflow:hidden; }
+  .scroll .track::after{
+    content:''; position:absolute; inset:0 0 auto; height:40%;
+    background:rgba(255,255,255,.75);
+    animation:trickle 2.6s var(--ease) infinite;
+  }
+  @keyframes trickle{
+    0%   { transform:translateY(-105%); opacity:0; }
+    22%  { opacity:1; }
+    78%  { opacity:1; }
+    100% { transform:translateY(255%); opacity:0; }
+  }
