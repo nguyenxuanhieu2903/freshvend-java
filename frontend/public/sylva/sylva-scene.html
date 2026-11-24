@@ -193,3 +193,35 @@
     overflow:hidden;
   }
   .dock-mark svg{ width:58%; height:58%; display:block; fill:currentColor; }
+   /* the near state paints .dock-item white, which on the pale mark tile
+     would be a white glyph on a white ground */
+  .dock-mark[data-near="true"]{ background:#fff; border-color:#fff; color:#1b1e18; }
+
+  /* the current section wears the cards' paper, so the nav and the cards
+     read as the same material */
+  .dock-item.is-active{
+    background:var(--card); border-color:var(--card); color:var(--card-ink);
+    box-shadow:0 calc(6 * var(--u)) calc(16 * var(--u)) rgba(12,17,9,.24);
+  }
+  .dock-item.is-active .glyph{ opacity:.8; }
+  .dock-item--enter{ color:var(--ink); background:rgba(255,255,255,.075); }
+
+  /* ── specular rim ────────────────────────────────────────────────────
+     A conic gradient masked down to the border, whose start angle points at
+     the pointer and whose opacity falls off with distance. It is the reason
+     the glass reads as a lit edge rather than as a flat translucent box. */
+  [data-spec]{ --spec-angle:2.4rad; --spec-bright:0; }
+  [data-spec]::after{
+    content:''; position:absolute; inset:-1px; z-index:5;
+    padding:1px; border-radius:inherit; pointer-events:none;
+    opacity:var(--spec-bright);
+    background:conic-gradient(from var(--spec-angle) at 50% 50%,
+      rgba(240,246,232,0) 0deg, rgba(240,246,232,.08) 14deg, rgba(240,246,232,.95) 28deg,
+      rgba(240,246,232,.16) 46deg, rgba(240,246,232,0) 68deg, rgba(240,246,232,0) 180deg,
+      rgba(240,246,232,.08) 194deg, rgba(240,246,232,.95) 208deg, rgba(240,246,232,.16) 226deg,
+      rgba(240,246,232,0) 248deg, rgba(240,246,232,0) 360deg);
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor; mask-composite:exclude;
+  }
+  .dock{ position:relative; }
