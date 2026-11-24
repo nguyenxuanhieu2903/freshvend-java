@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Sylva — Living Green Scene</title>
+  <style>
+    
+  @font-face{
+    font-family:'Lexend';
+    src:url('inner-green-assets/lexend-latin.woff2') format('woff2');
+    font-weight:100 900; font-style:normal; font-display:swap;
+    unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+  }
+
+  /* ── design unit: 1u === 1px on the 1600 × 880 reference frame ───────── */
+  :root{
+    --u: calc(100vw / 1600);
+
+    --ink:            #ffffff;
+    --ink-soft:       rgba(255,255,255,.62);
+    --ink-faint:      rgba(255,255,255,.44);
+    --rule:           rgba(255,255,255,.055);
+
+    --card:           #f2f3ef;
+    --card-ink:       #23261f;
+    --card-label:     #7c8177;
+
+    --ease: cubic-bezier(.22,.61,.36,1);
+    --ease-out: cubic-bezier(.16,1,.3,1);
+  }
+  @media (min-width:1900px){ :root{ --u: calc(1900px / 1600); } }
+
+  *,*::before,*::after{ box-sizing:border-box; margin:0; padding:0; }
+
+  html{ background:#383b34; }
+  body{
+    font-family:'Lexend',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    font-weight:300;
+    color:var(--ink);
+    background:#383b34;
+    overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
+  }
+
+  /* ── hero shell ──────────────────────────────────────────────────────── */
+  .hero{
+    position:relative;
+    width:100%;
+    height:100svh;
+    min-height:calc(880 * var(--u));
+    overflow:hidden;
+    isolation:isolate;
+    /* the reference screen reads a near-flat #4a4d44 corner to corner —
+       all the modelling comes from the light pool the root sits in */
+    background:
+      radial-gradient(64% 52% at 27% 84%, rgba(232,238,222,.085) 0%, rgba(232,238,222,0) 72%),
+      radial-gradient(70% 60% at 92% 8%,  rgba(24,28,20,.10) 0%, rgba(24,28,20,0) 68%),
+      #4a4d44;
+  }
+  /* The floor of light the root stands in. Sampled off the reference: the
+     background climbs from 73 luma at the nav to ~128 at y 850, brightest
+     around the middle of the bottom edge. */
+  .hero::after{
+    content:'';
+    position:absolute; inset:0;
+    background:
+      radial-gradient(72% 44% at 50% 117%, rgba(238,243,231,.50) 0%, rgba(238,243,231,.21) 42%, rgba(238,243,231,.04) 72%, rgba(238,243,231,0) 88%),
+      linear-gradient(180deg, rgba(238,243,231,0) 54%, rgba(238,243,231,.03) 78%, rgba(238,243,231,.085) 100%);
+    pointer-events:none; z-index:0;
+  }
+
+  /* The whole composition lives on a centred 1600 × 880 stage.
+     Centred with margins rather than a transform on purpose: a transform would
+     open a stacking context and trap every child below #scene. */
+  .stage{
+    position:absolute; left:50%; top:50%;
+    margin-left:calc(-800 * var(--u));
+    margin-top:calc(-440 * var(--u));
+    width:calc(1600 * var(--u));
+    height:calc(880 * var(--u));
+  }
+
+  /* ── column guides (z 1) ─────────────────────────────────────────────── */
+  .guides{ position:absolute; inset:calc(-40 * var(--u)) 0; z-index:1; pointer-events:none; }
+  .guides i{
+    position:absolute; top:0; bottom:0; width:1px;
+    background:linear-gradient(180deg, rgba(255,255,255,0) 0%, var(--rule) 12%, var(--rule) 78%, rgba(255,255,255,0) 100%);
+  }
+
+  /* ── ghost wordmark (z 1) ────────────────────────────────────────────── */
+  .ghost{
+    position:absolute; z-index:1;
+    left:calc(6 * var(--u)); bottom:calc(-64 * var(--u));
+    font-size:calc(310 * var(--u));
+    line-height:.78;
+    font-weight:400;
+    letter-spacing:calc(30 * var(--u));
+    color:rgba(255,255,255,.055);
+    white-space:nowrap; user-select:none; pointer-events:none;
+  }
+
+  /* ── three.js canvas (z 3 — above card 1, below everything else) ─────── */
+  #scene{
+    position:absolute; inset:0; z-index:3;
+    width:100%; height:100%;
+    pointer-events:none;
+    opacity:1; transition:opacity .7s var(--ease);
+  }
+  .is-ready #scene{ opacity:1; }
