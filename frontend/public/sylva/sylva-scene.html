@@ -225,3 +225,26 @@
     -webkit-mask-composite:xor; mask-composite:exclude;
   }
   .dock{ position:relative; }
+
+   /* ── hero copy (z 4) ─────────────────────────────────────────────────── */
+  .headline{
+    position:absolute; z-index:4;
+    left:calc(46 * var(--u)); top:calc(202 * var(--u));
+    font-size:calc(63 * var(--u)); line-height:calc(65 * var(--u));
+    font-weight:300; letter-spacing:calc(-0.4 * var(--u));
+    color:var(--ink);
+  }
+  /* No overflow clip: cropping a 63u face to wipe it in cuts the descenders
+     of "Step" and "living" at the moment they land. The padding stays even
+     though the clip is gone — it set the two lines' metrics, and removing it
+     would shift line two. */
+  .headline span{ display:block; padding-bottom:.04em; }
+  .headline span i{ display:inline-block; font-style:normal; }
+
+  .lede{
+    position:absolute; z-index:4;
+    left:calc(520 * var(--u)); top:calc(196 * var(--u));
+    width:calc(208 * var(--u));
+    font-size:calc(16.5 * var(--u)); line-height:calc(22 * var(--u));
+    font-weight:300; color:var(--ink-soft);
+  }
