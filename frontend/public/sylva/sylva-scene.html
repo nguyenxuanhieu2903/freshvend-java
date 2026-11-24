@@ -577,3 +577,58 @@
     from{ clip-path:inset(0 100% 0 0 round calc(25 * var(--u))); }
     to{ clip-path:inset(0 0 0 0 round calc(25 * var(--u))); }
   }
+  /* The glow travels by animating its own offset, not by a translate
+     percentage. A translate is a percentage of the glow's width, so the
+     distance it covers depends on the plate's proportions — it overshot by
+     a quarter of the card here and rode ahead of the edge the whole way.
+     In calc() the travel is exactly the media box: 100% of the plate plus
+     the 9u of overscan at each end, at every breakpoint. */
+  @keyframes portal-scan{
+    0%{ left:calc(-13% - 9 * var(--u)); opacity:0; }
+    10%{ opacity:.75; }
+    88%{ opacity:.55; }
+    100%{ left:calc(87% + 9 * var(--u)); opacity:0; }
+  }
+
+  /* No clip on the canvas: the root draws itself in behind the survey pulse,
+     and a CSS wipe on top of that would be two reveals fighting each other.
+     The fade is only here to cover the first compiled frame. */
+  .is-ready #scene{ transition:opacity .45s var(--ease); }
+
+  /* ── pointer parallax ────────────────────────────────────────────────
+     --px / --py are written on .hero once per frame (-1…1). Each layer
+     declares how far it rides (--pd, px at full deflection) and how much
+     it turns (--pr, degrees), which is what gives the plane its depth. */
+  .par{
+    transform:
+      perspective(1400px)
+      translate3d(calc(var(--px,0) * var(--pd,0) * -1px),
+                  calc(var(--py,0) * var(--pd,0) * -0.62px),
+                  0)
+      rotateY(calc(var(--px,0) * var(--pr,0) * 1deg))
+      rotateX(calc(var(--py,0) * var(--pr,0) * -0.7deg));
+  }
+  /* the floating knob turns about the About card's centre, not its own,
+     so it stays glued to the corner it belongs to */
+  .knob-float{ transform-origin:calc(-87 * var(--u)) calc(-74.5 * var(--u)); }
+  .card--about{ transform-origin:50% 50%; }
+
+  /* ── keyboard focus ──────────────────────────────────────────────────── */
+  a:focus-visible, button:focus-visible{
+    outline:2px solid rgba(255,255,255,.85);
+    outline-offset:calc(4 * var(--u));
+    border-radius:calc(6 * var(--u));
+  }
+  .card .knob:focus-visible, .knob--about:focus-visible, .play:focus-visible{ outline-color:rgba(28,34,22,.9); }
+
+  @media (prefers-reduced-motion:reduce){
+    .mask,.mask-circle,.fade,#scene,
+    .dock,.dock-item,
+    .headline span i{ opacity:1 !important; clip-path:none !important; transform:none !important; transition:none !important; }
+    .par{ transform:none !important; }
+    .portal-media{ clip-path:none !important; animation:none !important; transform:none !important; }
+    .pixel-reveal,.card figure::after{ display:none !important; }
+    .portal-media img{ transform:none !important; transition:none !important; }
+    .scroll .track::after{ animation:none; }
+    #scene{ transition:none; }
+  }
