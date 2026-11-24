@@ -164,3 +164,32 @@
     will-change:width,height,transform;
     transition:color .18s var(--ease), border-color .2s var(--ease), background .2s var(--ease);
   }
+  /* A magnified pill hangs below the capsule, so it needs to be its own
+     opaque tile — a translucent white wash at that size reads as a milky
+     rectangle stuck to the bar rather than as a key lifting off it. */
+  .dock-item[data-near="true"]{
+    z-index:7;
+    color:var(--ink);
+    border-color:rgba(255,255,255,.19);
+    background:rgba(31,37,28,.94);
+    box-shadow:0 calc(7 * var(--u)) calc(16 * var(--u)) rgba(10,14,8,.30);
+  }
+  .dock-item .glyph{
+    width:calc(14 * var(--u)); height:calc(14 * var(--u)); flex:none;
+    opacity:.66; transition:opacity .18s var(--ease);
+  }
+  .dock-item .glyph svg{
+    display:block; width:100%; height:100%;
+    fill:none; stroke:currentColor; stroke-width:1.25;
+    stroke-linecap:round; stroke-linejoin:round;
+  }
+  .dock-item[data-near="true"] .glyph{ opacity:1; }
+
+  /* the mark is the dock's anchor: a solid pale tile, the one opaque thing
+     in a bar made of glass */
+  .dock-mark{
+    width:calc(36 * var(--u)); padding:0;
+    background:#eef1e7; border-color:#eef1e7; color:#23261f;
+    overflow:hidden;
+  }
+  .dock-mark svg{ width:58%; height:58%; display:block; fill:currentColor; }
