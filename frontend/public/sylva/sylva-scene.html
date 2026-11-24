@@ -109,3 +109,58 @@
     opacity:1; transition:opacity .7s var(--ease);
   }
   .is-ready #scene{ opacity:1; }
+
+  /* ── nav: a floating dock (z 5) ──────────────────────────────────────
+     A centred capsule of pills that magnify as the pointer nears them, over
+     a rim highlight that tracks where the pointer is — the dock idiom from
+     ascii-page-transition, in this page's palette and unit system.
+     The wrapper does the centring so the capsule itself is free to carry the
+     pointer-parallax transform; putting both on one element means whichever
+     is written last wins and the dock jumps out of centre. */
+  .dock-wrap{
+    position:absolute; z-index:5;
+    top:calc(38 * var(--u)); left:0; right:0;
+    display:flex; justify-content:center;
+    pointer-events:none;
+  }
+  .dock{
+    pointer-events:auto;
+    display:flex; align-items:flex-start; gap:calc(3 * var(--u));
+    height:calc(46 * var(--u));
+    padding:calc(5 * var(--u));
+    border-radius:calc(14 * var(--u));
+    border:1px solid rgba(255,255,255,.11);
+    /* No backdrop-filter. It sits over a canvas that repaints every frame,
+       so the backdrop has to be re-sampled and re-blurred every frame too —
+       measured at ~20 fps off the whole page, and the radius made no
+       difference because the cost is the extra pass, not the blur. A
+       translucent panel with a lit top edge reads the same at this size. */
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,0) 42%),
+      rgba(34,40,31,.74);
+    box-shadow:0 calc(8 * var(--u)) calc(22 * var(--u)) rgba(10,14,8,.30),
+               inset 0 1px rgba(255,255,255,.06);
+    isolation:isolate;
+  }
+  /* Anchored at the top so growth runs downward, out of the headline's way —
+     a dock that grew from its centre would push into the nav's own row. */
+  .dock-item{
+    position:relative; z-index:6;
+    display:inline-flex; align-items:center; justify-content:center;
+    flex:none;
+    height:calc(36 * var(--u));
+    gap:calc(8 * var(--u));
+    padding:0 calc(13 * var(--u));
+    transform-origin:50% 0;
+    border:1px solid transparent;
+    border-radius:calc(10 * var(--u));
+    background:rgba(255,255,255,.04);
+    color:var(--ink-faint);
+    text-decoration:none; cursor:pointer;
+    font-family:inherit;
+    font-size:calc(11 * var(--u)); font-weight:500;
+    letter-spacing:calc(1.5 * var(--u)); text-transform:uppercase;
+    white-space:nowrap;
+    will-change:width,height,transform;
+    transition:color .18s var(--ease), border-color .2s var(--ease), background .2s var(--ease);
+  }
