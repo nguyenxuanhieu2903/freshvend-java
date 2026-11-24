@@ -109,3 +109,119 @@
     opacity:1; transition:opacity .7s var(--ease);
   }
   .is-ready #scene{ opacity:1; }
+
+  /* ── nav: a floating dock (z 5) ──────────────────────────────────────
+     A centred capsule of pills that magnify as the pointer nears them, over
+     a rim highlight that tracks where the pointer is — the dock idiom from
+     ascii-page-transition, in this page's palette and unit system.
+     The wrapper does the centring so the capsule itself is free to carry the
+     pointer-parallax transform; putting both on one element means whichever
+     is written last wins and the dock jumps out of centre. */
+  .dock-wrap{
+    position:absolute; z-index:5;
+    top:calc(38 * var(--u)); left:0; right:0;
+    display:flex; justify-content:center;
+    pointer-events:none;
+  }
+  .dock{
+    pointer-events:auto;
+    display:flex; align-items:flex-start; gap:calc(3 * var(--u));
+    height:calc(46 * var(--u));
+    padding:calc(5 * var(--u));
+    border-radius:calc(14 * var(--u));
+    border:1px solid rgba(255,255,255,.11);
+    /* No backdrop-filter. It sits over a canvas that repaints every frame,
+       so the backdrop has to be re-sampled and re-blurred every frame too —
+       measured at ~20 fps off the whole page, and the radius made no
+       difference because the cost is the extra pass, not the blur. A
+       translucent panel with a lit top edge reads the same at this size. */
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,0) 42%),
+      rgba(34,40,31,.74);
+    box-shadow:0 calc(8 * var(--u)) calc(22 * var(--u)) rgba(10,14,8,.30),
+               inset 0 1px rgba(255,255,255,.06);
+    isolation:isolate;
+  }
+  /* Anchored at the top so growth runs downward, out of the headline's way —
+     a dock that grew from its centre would push into the nav's own row. */
+  .dock-item{
+    position:relative; z-index:6;
+    display:inline-flex; align-items:center; justify-content:center;
+    flex:none;
+    height:calc(36 * var(--u));
+    gap:calc(8 * var(--u));
+    padding:0 calc(13 * var(--u));
+    transform-origin:50% 0;
+    border:1px solid transparent;
+    border-radius:calc(10 * var(--u));
+    background:rgba(255,255,255,.04);
+    color:var(--ink-faint);
+    text-decoration:none; cursor:pointer;
+    font-family:inherit;
+    font-size:calc(11 * var(--u)); font-weight:500;
+    letter-spacing:calc(1.5 * var(--u)); text-transform:uppercase;
+    white-space:nowrap;
+    will-change:width,height,transform;
+    transition:color .18s var(--ease), border-color .2s var(--ease), background .2s var(--ease);
+  }
+  /* A magnified pill hangs below the capsule, so it needs to be its own
+     opaque tile — a translucent white wash at that size reads as a milky
+     rectangle stuck to the bar rather than as a key lifting off it. */
+  .dock-item[data-near="true"]{
+    z-index:7;
+    color:var(--ink);
+    border-color:rgba(255,255,255,.19);
+    background:rgba(31,37,28,.94);
+    box-shadow:0 calc(7 * var(--u)) calc(16 * var(--u)) rgba(10,14,8,.30);
+  }
+  .dock-item .glyph{
+    width:calc(14 * var(--u)); height:calc(14 * var(--u)); flex:none;
+    opacity:.66; transition:opacity .18s var(--ease);
+  }
+  .dock-item .glyph svg{
+    display:block; width:100%; height:100%;
+    fill:none; stroke:currentColor; stroke-width:1.25;
+    stroke-linecap:round; stroke-linejoin:round;
+  }
+  .dock-item[data-near="true"] .glyph{ opacity:1; }
+
+  /* the mark is the dock's anchor: a solid pale tile, the one opaque thing
+     in a bar made of glass */
+  .dock-mark{
+    width:calc(36 * var(--u)); padding:0;
+    background:#eef1e7; border-color:#eef1e7; color:#23261f;
+    overflow:hidden;
+  }
+  .dock-mark svg{ width:58%; height:58%; display:block; fill:currentColor; }
+   /* the near state paints .dock-item white, which on the pale mark tile
+     would be a white glyph on a white ground */
+  .dock-mark[data-near="true"]{ background:#fff; border-color:#fff; color:#1b1e18; }
+
+  /* the current section wears the cards' paper, so the nav and the cards
+     read as the same material */
+  .dock-item.is-active{
+    background:var(--card); border-color:var(--card); color:var(--card-ink);
+    box-shadow:0 calc(6 * var(--u)) calc(16 * var(--u)) rgba(12,17,9,.24);
+  }
+  .dock-item.is-active .glyph{ opacity:.8; }
+  .dock-item--enter{ color:var(--ink); background:rgba(255,255,255,.075); }
+
+  /* ── specular rim ────────────────────────────────────────────────────
+     A conic gradient masked down to the border, whose start angle points at
+     the pointer and whose opacity falls off with distance. It is the reason
+     the glass reads as a lit edge rather than as a flat translucent box. */
+  [data-spec]{ --spec-angle:2.4rad; --spec-bright:0; }
+  [data-spec]::after{
+    content:''; position:absolute; inset:-1px; z-index:5;
+    padding:1px; border-radius:inherit; pointer-events:none;
+    opacity:var(--spec-bright);
+    background:conic-gradient(from var(--spec-angle) at 50% 50%,
+      rgba(240,246,232,0) 0deg, rgba(240,246,232,.08) 14deg, rgba(240,246,232,.95) 28deg,
+      rgba(240,246,232,.16) 46deg, rgba(240,246,232,0) 68deg, rgba(240,246,232,0) 180deg,
+      rgba(240,246,232,.08) 194deg, rgba(240,246,232,.95) 208deg, rgba(240,246,232,.16) 226deg,
+      rgba(240,246,232,0) 248deg, rgba(240,246,232,0) 360deg);
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor; mask-composite:exclude;
+  }
+  .dock{ position:relative; }
