@@ -1146,3 +1146,70 @@
     }
     if (!moving) SPEC.dirty = false;
   }
+
+  function initDock() {
+    var root = document.querySelector('.dock');
+    if (!root) return;
+    DOCK.root = root;
+    DOCK.items = [].map.call(root.querySelectorAll('[data-dock]'), function (el) {
+      return { el: el, w: 0, h: 0, v: 0, vel: 0, target: 0 };
+    });
+    SPEC.items = [].map.call(document.querySelectorAll('[data-spec]'), function (el) {
+      return { el: el, ang: 2.4, tAng: 2.4, br: 0, tBr: 0, focused: false,
+               reach: el.classList.contains('dock') ? 250 : 185 };
+    });
+    SPEC.on = fineHover();
+
+    measureDock();
+    /* the labels set the pill widths, so the base measure is wrong until the
+       real face has landed */
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(measureDock);
+    window.addEventListener('resize', measureDock);
+
+    window.addEventListener('pointermove', function (e) {
+      if (e.pointerType === 'touch') return;
+      aimX = e.clientX; aimY = e.clientY; aimSeen = true; aimMoved = true; DOCK.key = false;
+      DOCK.dirty = SPEC.dirty = true;
+    }, { passive: true });
+
+    window.addEventListener('pointerleave', function () {
+      aimSeen = false;
+      dockRest();
+      for (var i = 0; i < SPEC.items.length; i++) SPEC.items[i].tBr = SPEC.items[i].focused ? 0.9 : 0;
+      SPEC.dirty = true;
+    });
+
+    /* keyboard gets the same magnification, centred on the focused pill */
+    root.addEventListener('focusin', function (e) {
+      var item = e.target.closest('[data-dock]');
+      if (!item || !DOCK.on) return;
+      var idx = DOCK.items.map(function (st) { return st.el; }).indexOf(item);
+      DOCK.items.forEach(function (st, i) {
+        st.target = i === idx ? 1 : Math.abs(i - idx) === 1 ? 0.24 : 0;
+        st.el.dataset.near = st.target > 0.08 ? 'true' : 'false';
+      });
+      DOCK.live = false; DOCK.key = true; DOCK.dirty = true;
+    });
+    root.addEventListener('focusout', function () {
+      requestAnimationFrame(function () {
+        if (!root.contains(document.activeElement)) { DOCK.key = false; dockRest(); }
+      });
+    });
+    for (var i = 0; i < SPEC.items.length; i++) (function (st) {
+      st.el.addEventListener('focusin', function () { st.focused = true; SPEC.dirty = true; });
+      st.el.addEventListener('focusout', function () { st.focused = false; SPEC.dirty = true; });
+    })(SPEC.items[i]);
+
+    /* the current section moves with the click, and the pill throws a
+       handful of pollen — the page already has an emitter for that */
+    root.addEventListener('click', function (e) {
+      var item = e.target.closest('[data-dock]');
+      if (!item) return;
+      e.preventDefault();
+      if (!item.classList.contains('dock-mark')) {
+        for (var i = 0; i < DOCK.items.length; i++) DOCK.items[i].el.classList.remove('is-active');
+        item.classList.add('is-active');
+      }
+      burstAt(e.clientX, e.clientY);
+    });
+  }
