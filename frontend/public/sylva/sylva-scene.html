@@ -869,3 +869,148 @@
       pointer.x = pointer.y = 0; ndc.x = 10;
     });
   }
+
+   var canvas   = document.getElementById('scene');
+  var hero     = document.getElementById('hero');
+  var stageEl  = document.getElementById('stage');
+  var NARROW   = window.matchMedia('(max-width: 900px)');
+
+  /* ── where the two roots sit on the 1600 × 880 reference frame ───────
+     Unchanged from the artwork build: the near root's box is the old
+     moss-arch.png's box, the far one is moss-ridge.png's, so every landmark
+     lands exactly where the layout was drawn around it. */
+  var ARCH   = { w: 1900, left: -180, top: 306, aspect: 2800 / 1377 };
+  var ARCH_N = { w: 1120, left: -290, top: 555, aspect: 2800 / 1377 };
+  var FAR    = { w: 1150, left:  -40, top: 320, aspect: 1600 /  757, z: -260 };
+  var FAR_N  = { w:  780, left: -110, top: 600, aspect: 1600 /  757, z: -260 };
+
+  var renderer, scene, camera;
+  var nearGroup, farGroup, motes, shadowMesh, glowMesh;
+  var W = 1, H = 1, DIST = 1400;
+  var poleTex = null;
+  var scanning = false, scanT = 0, scanMax = 3000;
+  var SCAN_DUR = 3.4;
+  var clock = null;
+  var readyStarted = false;
+
+  /* ── plate transmission ─────────────────────────────────────────────
+     Sample the actual photograph into a tiny grid and carry those colours
+     along the stepped clip edge. The canvas exists for this one entrance
+     only; after the reveal it stops painting and the live image takes over.
+
+     The dot front, the white scan and the CSS clip all have to sit on the
+     same line, which means reproducing the CSS progression exactly rather
+     than approximating it: floor(t * STEPS) / STEPS, linear — an eased
+     curve here put the dots a third of a plate ahead of the edge they are
+     supposed to be gathering on. The clip is applied to .portal-media,
+     which is overscanned past the figure by 9u so the parallax rotation has
+     somewhere to go, so the front has to be converted out of that box and
+     into the canvas's before it is painted. */
+  var CUT_STEPS = 12, CUT_MS = 1450;
+  var portalStarted = false;
+
+  function startPortalReveal() {
+    if (REDUCED || portalStarted) return;
+    portalStarted = true;
+    var figs = document.querySelectorAll('.portal');
+    for (var i = 0; i < figs.length; i++) revealPortal(figs[i]);
+  }
+
+  function revealPortal(fig) {
+    var img = fig.querySelector('img');
+    var canvasEl = fig.querySelector('.pixel-reveal');
+    var media = fig.querySelector('.portal-media');
+    if (!img || !canvasEl || !media) return;
+
+    var delay = parseFloat(fig.getAttribute('data-delay')) || 1080;
+
+    function launch() {
+      setTimeout(function () {
+        var box = canvasEl.getBoundingClientRect();
+        if (!box.width || !box.height) return;
+
+        var dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvasEl.width = Math.max(1, Math.round(box.width * dpr));
+        canvasEl.height = Math.max(1, Math.round(box.height * dpr));
+        var ctx = canvasEl.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        var cols = 52;
+        var rows = Math.max(18, Math.round(cols * box.height / box.width));
+
+        var sample = document.createElement('canvas');
+        sample.width = cols; sample.height = rows;
+        var sg = sample.getContext('2d', { willReadFrequently:true });
+        var rgba = null;
+        try {
+          sg.drawImage(img, 0, 0, cols, rows);
+          rgba = sg.getImageData(0, 0, cols, rows).data;
+        } catch (err) {
+          /* file:// can make canvas pixels unreadable; the reveal still runs
+             with the page's pale-moss transmission colour. */
+        }
+
+        /* layout offsets, not bounding rects — .portal-media carries a live
+           transform and its rect would drift with the pointer */
+        var over = -media.offsetLeft;
+        var span = media.offsetWidth;
+        var reach = box.width;
+
+        canvasEl.style.opacity = '1';
+        var startedAt = performance.now();
+
+        function paint(now) {
+          var t = Math.min(1, (now - startedAt) / CUT_MS);
+          var stepped = Math.floor(t * CUT_STEPS) / CUT_STEPS;
+          var front = (stepped * span - over) / reach;
+          var tailFade = t < .88 ? 1 : (1 - t) / .12;
+          ctx.clearRect(0, 0, box.width, box.height);
+
+          for (var y = 0; y < rows; y++) {
+            for (var x = 0; x < cols; x++) {
+              var an = (x + .5) / cols;
+              var delta = an - front;
+              /* symmetric about the front: an asymmetric band puts the
+                 pattern's centre of mass ahead of the edge it belongs to */
+              if (delta < -.16 || delta > .16) continue;
+
+              var band = 1 - Math.abs(delta) / .16;
+              var pulse = .68 + .32 * Math.sin(x * 2.71 + y * 1.93 + t * 26);
+              var alpha = Math.max(0, band * pulse * tailFade);
+              if (alpha < .08) continue;
+
+              var r = 220, g = 238, b = 202;
+              if (rgba) {
+                var q = (y * cols + x) * 4;
+                r = Math.min(255, rgba[q] * 1.18 + 20);
+                g = Math.min(255, rgba[q + 1] * 1.18 + 24);
+                b = Math.min(255, rgba[q + 2] * 1.12 + 14);
+              }
+
+              var px = (x + .5) * box.width / cols;
+              var py = (y + .5) * box.height / rows;
+              var jitter = (1 - band) * 5;
+              px += Math.sin(y * 3.17 + x) * jitter;
+              py += Math.cos(x * 2.41 - y) * jitter;
+              var radius = (.55 + band * 1.25) * Math.max(.75, reach / 300);
+
+              ctx.fillStyle = 'rgba(' + Math.round(r) + ',' + Math.round(g) + ',' + Math.round(b) + ',' + (alpha * .92) + ')';
+              ctx.beginPath();
+              ctx.arc(px, py, radius, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+
+          if (t < 1) requestAnimationFrame(paint);
+          else {
+            ctx.clearRect(0, 0, box.width, box.height);
+            canvasEl.style.opacity = '0';
+          }
+        }
+        requestAnimationFrame(paint);
+      }, delay);
+    }
+
+    if (img.complete && img.naturalWidth) launch();
+    else img.addEventListener('load', launch, { once:true });
+  }
