@@ -632,3 +632,165 @@
     .scroll .track::after{ animation:none; }
     #scene{ transition:none; }
   }
+
+   /* ── narrow screens: one column, the moss becomes a band between the
+        copy and the cards (760 design units wide) ───────────────────────── */
+  @media (max-width:900px){
+    :root{ --u: calc(100vw / 760); }
+    .hero{ height:auto; min-height:100svh; }
+    .stage{
+      position:relative; left:auto; top:auto; margin:0;
+      width:100%; height:calc(1625 * var(--u));
+    }
+    .hero::after{
+      background:
+        radial-gradient(90% 30% at 50% 74%, rgba(238,243,231,.40) 0%, rgba(238,243,231,.14) 46%, rgba(238,243,231,0) 82%),
+        linear-gradient(180deg, rgba(238,243,231,0) 62%, rgba(238,243,231,.05) 100%);
+    }
+    .guides i:nth-child(3){ display:none; }
+    .guides i:nth-child(1){ left:calc(253 * var(--u)) !important; }
+    .guides i:nth-child(2){ left:calc(506 * var(--u)) !important; }
+
+    /* one column: the labels come off and the dock keeps only its glyphs,
+       because at this scale the type would be four pixels tall */
+    /* Floored with max(), not left on the design unit alone: this breakpoint
+       runs from 900px down to 320px, so a pure --u dock is a 24px bar with
+       12px targets on a phone. The floor only bites at the small end. */
+    .dock-wrap{ top:calc(30 * var(--u)); }
+    .dock{
+      height:max(56px, calc(58 * var(--u)));
+      padding:max(6px, calc(6 * var(--u)));
+      gap:max(4px, calc(4 * var(--u)));
+      border-radius:max(17px, calc(18 * var(--u)));
+    }
+    .dock-item{
+      height:max(44px, calc(46 * var(--u)));
+      width:max(44px, calc(46 * var(--u)));
+      padding:0; border-radius:max(12px, calc(13 * var(--u)));
+    }
+    .dock-item span:not(.glyph){ display:none; }
+    .dock-item .glyph{ width:max(19px, calc(20 * var(--u))); height:max(19px, calc(20 * var(--u))); }
+    .dock-mark svg{ width:52%; height:52%; }
+    .knob-float{ left:calc(644 * var(--u)); top:calc(1218 * var(--u)); transform-origin:calc(-264 * var(--u)) calc(-43 * var(--u)); }
+    .headline{ left:calc(34 * var(--u)); top:calc(128 * var(--u)); font-size:calc(62 * var(--u)); line-height:calc(66 * var(--u)); }
+    .lede{ left:calc(34 * var(--u)); top:calc(288 * var(--u)); width:calc(400 * var(--u)); font-size:calc(19 * var(--u)); line-height:calc(27 * var(--u)); }
+    /* one column: the frame keeps its aspect, re-anchored to the left rail */
+    .pill-clip{
+      left:calc(34 * var(--u)); top:calc(430 * var(--u));
+      width:calc(506 * var(--u)); height:calc(334 * var(--u));
+      margin:calc(-167 * var(--u)) 0 0 calc(-79 * var(--u));
+      clip-path:inset(calc(93 * var(--u)) calc(74 * var(--u)) calc(1 * var(--u)) calc(74 * var(--u)) round calc(76 * var(--u)));
+    }
+    .liquid-stage--explore{ --h:calc(74.4152 * var(--u)); }
+    .play-wrap{ display:none; }
+
+    .stat{ gap:calc(11 * var(--u)); }
+    .stat .mark{ width:calc(36 * var(--u)); height:calc(36 * var(--u)); }
+    .stat dt{ font-size:calc(16 * var(--u)); line-height:calc(22 * var(--u)); }
+    .stat dd{ font-size:calc(16.5 * var(--u)); line-height:calc(24 * var(--u)); }
+    .stat--a{ left:calc(34 * var(--u));  top:calc(540 * var(--u)); }
+    .stat--b{ left:calc(396 * var(--u)); top:calc(540 * var(--u)); }
+
+    .card{ border-radius:calc(40 * var(--u)); }
+    .card--about{ left:calc(34 * var(--u)); top:calc(1050 * var(--u)); width:calc(692 * var(--u)); height:calc(250 * var(--u)); }
+    .card--about .label{ top:calc(96 * var(--u)); }
+    .card--about h2{ top:calc(124 * var(--u)); width:calc(400 * var(--u)); font-size:calc(32 * var(--u)); line-height:calc(36 * var(--u)); }
+    .card--stove{ left:calc(34 * var(--u)); top:calc(1324 * var(--u)); width:calc(692 * var(--u)); height:calc(268 * var(--u)); }
+    .card--stove h2{ font-size:calc(32 * var(--u)); }
+     /* one column: both plates become a thumbnail on the card's outer edge,
+       the Ethos one still anchored to the top */
+    .card--stove figure{ left:auto; right:calc(16 * var(--u)); bottom:calc(16 * var(--u)); width:calc(300 * var(--u)); height:calc(150 * var(--u)); }
+    .card--about figure{ left:auto; right:calc(16 * var(--u)); top:calc(16 * var(--u)); width:calc(224 * var(--u)); height:calc(218 * var(--u)); }
+    .card .knob{ right:calc(24 * var(--u)); bottom:calc(24 * var(--u)); }
+    .card--stove .knob{ right:calc(30 * var(--u)); bottom:calc(30 * var(--u)); }
+
+    .scroll{ left:calc(702 * var(--u)); top:calc(470 * var(--u)); }
+    .ghost{ font-size:calc(184 * var(--u)); letter-spacing:calc(14 * var(--u)); bottom:calc(660 * var(--u)); left:calc(-10 * var(--u)); }
+  }
+
+
+/* Scene-focused viewport overrides */
+    html, body {
+      width: 100% !important;
+      height: 100% !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      overflow: hidden !important;
+      background: #123D32 !important;
+    }
+    .hero {
+      position: absolute !important;
+      inset: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      min-height: 0 !important;
+    }
+    #scene {
+      pointer-events: auto !important;
+    }
+    #webgl-fallback {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 50% 60%, rgba(216,243,106,0.15) 0%, rgba(18,61,50,0.95) 75%), #123D32;
+    }
+  </style>
+  <script>document.documentElement.className += " js";</script>
+</head>
+<body>
+  <main class="hero" id="hero">
+    <canvas id="scene" role="img" aria-label="Sylva Living Green"></canvas>
+    <div class="stage" id="stage" aria-hidden="true"></div>
+    <div id="webgl-fallback" aria-hidden="true"></div>
+  </main>
+
+  <script src="./three.min.js"></script>
+  <script>
+    
+/* ====================================================================== *
+ * The moss root is grown, not photographed.
+ *
+ * Everything the old build shipped as two transparent PNGs (4.6 MB) is now
+ * geometry: a tapered tube swept along a measured centreline, a second tube
+ * that loops over it to make the arch, a handful of recursive offshoots, and
+ * ~130 000 instanced blades of moss planted on whatever part of that surface
+ * faces the light. The silhouette landmarks — crest at 25% width, valley at
+ * 50%, apex at 73%, the hollow under it — are lifted straight off the
+ * original artwork's alpha channel, so the composition it was laid out
+ * against is unchanged.
+ *
+ * Being procedural also means the scene no longer needs a texture upload, so
+ * it now runs from file:// as well as it does from a server.
+ * ====================================================================== */
+(function () {
+  'use strict';
+
+  
+  var REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches || location.search.indexOf('reduced=1') !== -1;
+  var isTabHidden = false;
+
+  document.addEventListener('visibilitychange', function () {
+    isTabHidden = document.hidden;
+    if (!isTabHidden && ticking) {
+      lastTick = performance.now();
+    }
+  });
+
+  window.addEventListener('message', function (e) {
+    if (!e.data) return;
+    if (e.data.type === 'VISIBILITY') {
+      isTabHidden = !!e.data.hidden;
+      if (!isTabHidden && ticking) {
+        lastTick = performance.now();
+      }
+    } else if (e.data.type === 'POINTER_MOVE') {
+      pointer.x = (e.data.clientX / e.data.innerWidth) * 2 - 1;
+      pointer.y = (e.data.clientY / e.data.innerHeight) * 2 - 1;
+      var r = hero.getBoundingClientRect();
+      ndc.x =  ((e.data.clientX - r.left) / r.width) * 2 - 1;
+      ndc.y = -((e.data.clientY - r.top) / r.height) * 2 + 1;
+    } else if (e.data.type === 'POINTER_LEAVE') {
+      pointer.x = pointer.y = 0;
+      ndc.x = 10;
+    }
+  });
