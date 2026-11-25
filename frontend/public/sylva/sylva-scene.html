@@ -794,3 +794,78 @@
       ndc.x = 10;
     }
   });
+
+
+  /* ── pointer parallax ───────────────────────────────────────────────
+     Every layer that carries a --pd gets .par; the loop writes the eased
+     pointer position onto .hero once a frame and CSS does the rest, so this
+     works whether or not the WebGL scene came up.
+
+     The ghost wordmark and the column guides sit this one out on purpose:
+     they are the furthest plane, their travel would be a few pixels, and
+     promoting two near-full-stage boxes to composited layers cost more
+     frames than the effect was worth. */
+  var PARALLAX = '.dock,.headline,.lede,.pill,.play-wrap,' +
+                 '.stat--a,.stat--b,.card--about,.knob-float,.card--stove,.scroll';
+
+  var pointer = { x: 0, y: 0 }, smooth = { x: 0, y: 0 };
+  var heroEl = document.getElementById('hero');
+  var lastX = null, lastY = null;
+  var ticking = false, parOn = false;
+
+  /* one rAF for the whole page: it eases the pointer, publishes it, and
+     renders the GL scene if there is one */
+  function startTick() {
+    if (ticking) return;
+    ticking = true;
+    (function loop() { requestAnimationFrame(loop); if (!isTabHidden) tick(); })();
+  }
+
+  var lastTick = 0;
+  function tick() {
+    if (isTabHidden) return;
+    var now = performance.now();
+    var dtUI = lastTick ? Math.min((now - lastTick) / 1000, 0.05) : 0.016;
+    lastTick = now;
+    drawDock(dtUI);
+    drawSpec(dtUI);
+    aimMoved = false;
+    if (parOn) {
+      smooth.x += (pointer.x - smooth.x) * 0.055;
+      smooth.y += (pointer.y - smooth.y) * 0.055;
+      /* three decimals is finer than a pixel of travel, and rounding lets the
+         writes stop entirely once the pointer settles — no style invalidation
+         on an idle page */
+      var nx = Math.round(smooth.x * 1000) / 1000, ny = Math.round(smooth.y * 1000) / 1000;
+      if (nx !== lastX || ny !== lastY) {
+        lastX = nx; lastY = ny;
+        heroEl.style.setProperty('--px', nx);
+        heroEl.style.setProperty('--py', ny);
+      }
+    }
+    if (renderer && clock) renderFrame();
+  }
+
+  function startParallax() {
+    startTick();
+    if (REDUCED || parOn) return;
+    parOn = true;
+    var nodes = document.querySelectorAll(PARALLAX);
+    for (var i = 0; i < nodes.length; i++) nodes[i].classList.add('par');
+
+    window.addEventListener('pointermove', function (e) {
+      if (e.pointerType === 'touch') return;
+      pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+      pointer.y = (e.clientY / window.innerHeight) * 2 - 1;
+      /* the GL camera is framed on .hero, not on the window — on the narrow
+         layout the hero is the taller of the two, so the pointer has to be
+         put back into the canvas's own box or the moss parts in the wrong place */
+      var r = hero.getBoundingClientRect();
+      ndc.x =  ((e.clientX - r.left) / r.width) * 2 - 1;
+      ndc.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+    }, { passive: true });
+
+    window.addEventListener('pointerleave', function () {
+      pointer.x = pointer.y = 0; ndc.x = 10;
+    });
+  }
