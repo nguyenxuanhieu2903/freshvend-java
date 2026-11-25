@@ -708,3 +708,89 @@
     .ghost{ font-size:calc(184 * var(--u)); letter-spacing:calc(14 * var(--u)); bottom:calc(660 * var(--u)); left:calc(-10 * var(--u)); }
   }
 
+
+/* Scene-focused viewport overrides */
+    html, body {
+      width: 100% !important;
+      height: 100% !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      overflow: hidden !important;
+      background: #123D32 !important;
+    }
+    .hero {
+      position: absolute !important;
+      inset: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      min-height: 0 !important;
+    }
+    #scene {
+      pointer-events: auto !important;
+    }
+    #webgl-fallback {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 50% 60%, rgba(216,243,106,0.15) 0%, rgba(18,61,50,0.95) 75%), #123D32;
+    }
+  </style>
+  <script>document.documentElement.className += " js";</script>
+</head>
+<body>
+  <main class="hero" id="hero">
+    <canvas id="scene" role="img" aria-label="Sylva Living Green"></canvas>
+    <div class="stage" id="stage" aria-hidden="true"></div>
+    <div id="webgl-fallback" aria-hidden="true"></div>
+  </main>
+
+  <script src="./three.min.js"></script>
+  <script>
+    
+/* ====================================================================== *
+ * The moss root is grown, not photographed.
+ *
+ * Everything the old build shipped as two transparent PNGs (4.6 MB) is now
+ * geometry: a tapered tube swept along a measured centreline, a second tube
+ * that loops over it to make the arch, a handful of recursive offshoots, and
+ * ~130 000 instanced blades of moss planted on whatever part of that surface
+ * faces the light. The silhouette landmarks — crest at 25% width, valley at
+ * 50%, apex at 73%, the hollow under it — are lifted straight off the
+ * original artwork's alpha channel, so the composition it was laid out
+ * against is unchanged.
+ *
+ * Being procedural also means the scene no longer needs a texture upload, so
+ * it now runs from file:// as well as it does from a server.
+ * ====================================================================== */
+(function () {
+  'use strict';
+
+  
+  var REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches || location.search.indexOf('reduced=1') !== -1;
+  var isTabHidden = false;
+
+  document.addEventListener('visibilitychange', function () {
+    isTabHidden = document.hidden;
+    if (!isTabHidden && ticking) {
+      lastTick = performance.now();
+    }
+  });
+
+  window.addEventListener('message', function (e) {
+    if (!e.data) return;
+    if (e.data.type === 'VISIBILITY') {
+      isTabHidden = !!e.data.hidden;
+      if (!isTabHidden && ticking) {
+        lastTick = performance.now();
+      }
+    } else if (e.data.type === 'POINTER_MOVE') {
+      pointer.x = (e.data.clientX / e.data.innerWidth) * 2 - 1;
+      pointer.y = (e.data.clientY / e.data.innerHeight) * 2 - 1;
+      var r = hero.getBoundingClientRect();
+      ndc.x =  ((e.data.clientX - r.left) / r.width) * 2 - 1;
+      ndc.y = -((e.data.clientY - r.top) / r.height) * 2 + 1;
+    } else if (e.data.type === 'POINTER_LEAVE') {
+      pointer.x = pointer.y = 0;
+      ndc.x = 10;
+    }
+  });
