@@ -3,78 +3,152 @@ package com.vendingmachine.dispense.adapter.mqtt;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
-/**
- * Configuration properties for MQTT communication with ESP32 device gateway.
- */
 @Component
 @ConfigurationProperties(prefix = "app.mqtt")
 public class MqttProperties {
 
-    private boolean enabled = true;
-    private String brokerUrl = "ssl://broker.emqx.io:8883";
-    private String clientId = "freshvend-backend-vm001";
-    private String username = "backend-vm001";
-    private String password = "";
-    private int qos = 1;
-    private int completionTimeoutMs = 5000;
-    private Topics topics = new Topics();
+    /**
+     * Whether MQTT transport is enabled. When false, Simulator mode is used.
+     */
+    private boolean enabled = false;
 
-    public static class Topics {
-        private String commands = "vending/{machineId}/commands";
-        private String events = "vending/{machineId}/events";
-        private String ack = "vending/{machineId}/events/ack";
-        private String heartbeat = "vending/{machineId}/heartbeat";
+    /**
+     * MQTT Broker URL (e.g. ssl://cluster.s1.eu.hivemq.cloud:8883 or tcp://localhost:1883).
+     */
+    private String brokerUrl = "ssl://localhost:8883";
 
-        public String getCommands() { return commands; }
-        public void setCommands(String commands) { this.commands = commands; }
+    /**
+     * MQTT Client ID used by the backend.
+     */
+    private String clientId = "backend-vending-001";
 
-        public String getEvents() { return events; }
-        public void setEvents(String events) { this.events = events; }
+    /**
+     * MQTT Username for broker authentication.
+     */
+    private String username;
 
-        public String getAck() { return ack; }
-        public void setAck(String ack) { this.ack = ack; }
+    /**
+     * MQTT Password for broker authentication.
+     */
+    private String password;
 
-        public String getHeartbeat() { return heartbeat; }
-        public void setHeartbeat(String heartbeat) { this.heartbeat = heartbeat; }
+    /**
+     * Machine ID to subscribe/publish to (e.g. VM001).
+     */
+    private String machineId = "VM001";
 
-        public String getCommandsForMachine(String machineId) {
-            return commands.replace("{machineId}", machineId);
-        }
+    /**
+     * Connection timeout in seconds.
+     */
+    private int connectionTimeoutSeconds = 30;
 
-        public String getEventsForMachine(String machineId) {
-            return events.replace("{machineId}", machineId);
-        }
+    /**
+     * Keep-alive ping interval in seconds.
+     */
+    private int keepAliveSeconds = 60;
 
-        public String getAckForMachine(String machineId) {
-            return ack.replace("{machineId}", machineId);
-        }
+    /**
+     * Clean session flag. Contract §2.3 mandates false (persistent session) for Backend.
+     */
+    private boolean cleanSession = false;
 
-        public String getHeartbeatForMachine(String machineId) {
-            return heartbeat.replace("{machineId}", machineId);
-        }
+    /**
+     * Maximum allowed duration in seconds since last heartbeat before marking device OFFLINE.
+     */
+    private int heartbeatTimeoutSeconds = 120;
+
+    /**
+     * Whether device online check strictly requires a recent heartbeat.
+     * When true, isDeviceOnline() returns true ONLY if a heartbeat arrived within heartbeatTimeoutSeconds.
+     */
+    private boolean requireHeartbeatForOnline = true;
+
+    public boolean isEnabled() {
+        return enabled;
     }
 
-    public boolean isEnabled() { return enabled; }
-    public void setEnabled(boolean enabled) { this.enabled = enabled; }
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
 
-    public String getBrokerUrl() { return brokerUrl; }
-    public void setBrokerUrl(String brokerUrl) { this.brokerUrl = brokerUrl; }
+    public String getBrokerUrl() {
+        return brokerUrl;
+    }
 
-    public String getClientId() { return clientId; }
-    public void setClientId(String clientId) { this.clientId = clientId; }
+    public void setBrokerUrl(String brokerUrl) {
+        this.brokerUrl = brokerUrl;
+    }
 
-    public String getUsername() { return username; }
-    public void setUsername(String username) { this.username = username; }
+    public String getClientId() {
+        return clientId;
+    }
 
-    public String getPassword() { return password; }
-    public void setPassword(String password) { this.password = password; }
+    public void setClientId(String clientId) {
+        this.clientId = clientId;
+    }
 
-    public int getQos() { return qos; }
-    public void setQos(int qos) { this.qos = qos; }
+    public String getUsername() {
+        return username;
+    }
 
-    public int getCompletionTimeoutMs() { return completionTimeoutMs; }
-    public void setCompletionTimeoutMs(int completionTimeoutMs) { this.completionTimeoutMs = completionTimeoutMs; }
+    public void setUsername(String username) {
+        this.username = username;
+    }
 
-    public Topics getTopics() { return topics; }
-    public void setTopics(Topics topics) { this.topics = topics; }
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
+    }
+
+    public String getMachineId() {
+        return machineId;
+    }
+
+    public void setMachineId(String machineId) {
+        this.machineId = machineId;
+    }
+
+    public int getConnectionTimeoutSeconds() {
+        return connectionTimeoutSeconds;
+    }
+
+    public void setConnectionTimeoutSeconds(int connectionTimeoutSeconds) {
+        this.connectionTimeoutSeconds = connectionTimeoutSeconds;
+    }
+
+    public int getKeepAliveSeconds() {
+        return keepAliveSeconds;
+    }
+
+    public void setKeepAliveSeconds(int keepAliveSeconds) {
+        this.keepAliveSeconds = keepAliveSeconds;
+    }
+
+    public boolean isCleanSession() {
+        return cleanSession;
+    }
+
+    public void setCleanSession(boolean cleanSession) {
+        this.cleanSession = cleanSession;
+    }
+
+    public int getHeartbeatTimeoutSeconds() {
+        return heartbeatTimeoutSeconds;
+    }
+
+    public void setHeartbeatTimeoutSeconds(int heartbeatTimeoutSeconds) {
+        this.heartbeatTimeoutSeconds = heartbeatTimeoutSeconds;
+    }
+
+    public boolean isRequireHeartbeatForOnline() {
+        return requireHeartbeatForOnline;
+    }
+
+    public void setRequireHeartbeatForOnline(boolean requireHeartbeatForOnline) {
+        this.requireHeartbeatForOnline = requireHeartbeatForOnline;
+    }
 }
+
