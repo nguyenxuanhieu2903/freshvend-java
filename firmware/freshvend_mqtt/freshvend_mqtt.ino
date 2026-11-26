@@ -218,3 +218,93 @@ void publishHeartbeat() {
 // ================================================================
 // XỬ LÝ LỆNH TỪ BACKEND (MQTT CALLBACK)
 // ================================================================
+void onMqttMessage(char* topic, byte* payloadBytes, unsigned int length) {
+  Serial.println("\n------------------------------------------------");
+  Serial.printf("[MQTT RECV] Topic: %s (Do dai: %u bytes)\n", topic, length);
+
+  char payload[1024];
+  if (length >= sizeof(payload)) {
+    Serial.println("[MQTT ERROR] Payload qua lon, vuot qua buffer!");
+    return;
+  }
+  memcpy(payload, payloadBytes, length);
+  payload[length] = '\0';
+  Serial.println(payload);
+
+  #if ARDUINOJSON_VERSION_MAJOR >= 7
+    JsonDocument doc;
+  #else
+    StaticJsonDocument<1024> doc;
+  #endif
+
+  DeserializationError error = deserializeJson(doc, payload);
+  if (error) {
+    Serial.printf("[JSON ERROR] Parse that bai: %s\n", error.c_str());
+    publishCommandRejected("", "", "INVALID_PAYLOAD");
+    return;
+  }
+
+  String cmdId    = doc["commandId"] | "";
+  String machine  = doc["machineId"] | "";
+  String orderId  = doc["orderId"] | "";
+  int slot        = doc["slotNumber"] | 0;
+  String action   = doc["action"] | "";
+
+  unsigned long runMs = DEFAULT_RUN_MS;
+  if (doc.containsKey("parameters") && doc["parameters"].containsKey("motorRunMs")) {
+    runMs = doc["parameters"]["motorRunMs"];
+  }
+
+  // 1. Kiểm tra mã máy
+  if (machine != MACHINE_ID) {
+    Serial.printf("[REJECT] Sai machineId: %s (Doi: %s)\n", machine.c_str(), MACHINE_ID);
+    publishCommandRejected(cmdId, orderId, "INVALID_MACHINE");
+    return;
+  }
+
+  // 2. Kiểm tra action
+  if (action != "DISPENSE") {
+    Serial.printf("[REJECT] Action khong ho tro: %s\n", action.c_str());
+    publishCommandRejected(cmdId, orderId, "UNKNOWN_ACTION");
+    return;
+  }
+
+  // 3. Kiểm tra số khay
+  if (slot < 1 || slot > 3) {
+    Serial.printf("[REJECT] Slot khong hop le: %d\n", slot);
+    publishCommandRejected(cmdId, orderId, "INVALID_SLOT");
+    return;
+  }
+
+  // 4. Kiểm tra xem có đang bận chạy lệnh khác không
+  if (isExecuting) {
+    Serial.println("[REJECT] He thong dang ban nha hang mot lenh khac!");
+    publishCommandRejected(cmdId, orderId, "BUSY");
+    return;
+  }
+
+  // 5. Kiểm tra chống trùng lặp (Idempotency qua NVS Flash)
+  String lastHandledCmd = preferences.getString("lastCmd", "");
+  if (lastHandledCmd == cmdId && cmdId.length() > 0) {
+    Serial.printf("[REJECT] Lenh da xu ly truoc do: %s\n", cmdId.c_str());
+    publishCommandRejected(cmdId, orderId, "DUPLICATE_COMMAND");
+    return;
+  }
+
+  // LỆNH HỢP LỆ -> CHẤP NHẬN VÀ KÍCH HOẠT MOTOR
+  Serial.printf("\n[ACCEPT] Chap nhan lenh cho Slot %d. Thoi gian chay: %lu ms\n", slot, runMs);
+  publishCommandAccepted(cmdId, orderId, slot);
+
+  // Bắt đầu quay motor
+  isExecuting = true;
+  executingSlot = slot;
+  currentCommandId = cmdId;
+  currentOrderId = orderId;
+  motorStopTime = millis() + runMs;
+
+  startMotor(slot);
+}
+
+// ================================================================
+// QUẢN LÝ KẾT NỐI WI-FI VÀ MQTT
+// ================================================================
