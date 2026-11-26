@@ -109,3 +109,112 @@ void startMotor(int slot) {
   servos[slot - 1]->write(SERVO_FWD);
   Serial.printf("[MOTOR] Slot %d bat dau quay TIEN (180 deg)\n", slot);
 }
+
+void stopMotor(int slot) {
+  if (slot < 1 || slot > 3) return;
+  servos[slot - 1]->write(SERVO_STOP);
+  Serial.printf("[MOTOR] Slot %d da DUNG (90 deg)\n", slot);
+}
+
+// ================================================================
+// GỬI CÁC SỰ KIỆN MQTT THEO CHUẨN MQTT_CONTRACT.md
+// ================================================================
+
+// 1. Phát sự kiện xác nhận nhận lệnh hợp lệ (COMMAND_ACCEPTED)
+void publishCommandAccepted(const String& cmdId, const String& orderId, int slot) {
+  #if ARDUINOJSON_VERSION_MAJOR >= 7
+    JsonDocument doc;
+  #else
+    StaticJsonDocument<512> doc;
+  #endif
+
+  doc["eventId"]    = generateUUID();
+  doc["commandId"]  = cmdId;
+  doc["machineId"]  = MACHINE_ID;
+  doc["orderId"]    = orderId;
+  doc["eventType"]  = "COMMAND_ACCEPTED";
+  doc["slotNumber"] = slot;
+  doc["timestamp"]  = getISO8601Timestamp();
+
+  char payload[512];
+  serializeJson(doc, payload);
+  mqttClient.publish(TOPIC_EVENTS, payload, false);
+  Serial.println("[MQTT -> EVENT] Da gui COMMAND_ACCEPTED:");
+  Serial.println(payload);
+}
+
+// 2. Phát sự kiện từ chối lệnh (COMMAND_REJECTED)
+void publishCommandRejected(const String& cmdId, const String& orderId, const String& reason) {
+  #if ARDUINOJSON_VERSION_MAJOR >= 7
+    JsonDocument doc;
+  #else
+    StaticJsonDocument<512> doc;
+  #endif
+
+  doc["eventId"]         = generateUUID();
+  doc["commandId"]       = cmdId;
+  doc["machineId"]       = MACHINE_ID;
+  doc["orderId"]         = orderId;
+  doc["eventType"]       = "COMMAND_REJECTED";
+  doc["slotNumber"]      = nullptr;
+  doc["rejectionReason"] = reason;
+  doc["timestamp"]       = getISO8601Timestamp();
+
+  char payload[512];
+  serializeJson(doc, payload);
+  mqttClient.publish(TOPIC_EVENTS, payload, false);
+  Serial.println("[MQTT -> EVENT] Da gui COMMAND_REJECTED:");
+  Serial.println(payload);
+}
+
+// 3. Phát sự kiện kết quả nhả hàng (DISPENSE_RESULT)
+void publishDispenseResult(const String& cmdId, const String& orderId, int slot, const String& result) {
+  #if ARDUINOJSON_VERSION_MAJOR >= 7
+    JsonDocument doc;
+  #else
+    StaticJsonDocument<512> doc;
+  #endif
+
+  doc["eventId"]           = generateUUID();
+  doc["commandId"]         = cmdId;
+  doc["machineId"]         = MACHINE_ID;
+  doc["orderId"]           = orderId;
+  doc["eventType"]         = "DISPENSE_RESULT";
+  doc["slotNumber"]        = slot;
+  doc["result"]            = result;
+  doc["verificationLevel"] = "MOTOR_CYCLE_ONLY";
+  doc["failureCode"]       = nullptr;
+  doc["failureMessage"]    = nullptr;
+  doc["timestamp"]         = getISO8601Timestamp();
+
+  char payload[512];
+  serializeJson(doc, payload);
+  mqttClient.publish(TOPIC_EVENTS, payload, false);
+  Serial.println("[MQTT -> EVENT] Da gui DISPENSE_RESULT:");
+  Serial.println(payload);
+}
+
+// 4. Phát sự kiện định kỳ báo máy sống (HEARTBEAT - 30 giây/lần)
+void publishHeartbeat() {
+  #if ARDUINOJSON_VERSION_MAJOR >= 7
+    JsonDocument doc;
+  #else
+    StaticJsonDocument<256> doc;
+  #endif
+
+  doc["machineId"]       = MACHINE_ID;
+  doc["status"]          = "ONLINE";
+  doc["firmwareVersion"] = FIRMWARE_VERSION;
+  doc["uptimeSeconds"]   = millis() / 1000;
+  doc["rssi"]            = WiFi.RSSI();
+  doc["timestamp"]       = getISO8601Timestamp();
+
+  char payload[256];
+  serializeJson(doc, payload);
+  mqttClient.publish(TOPIC_HEARTBEAT, payload, false);
+  Serial.printf("[MQTT -> HEARTBEAT] Uptime: %lu s | RSSI: %d dBm\n", millis() / 1000, WiFi.RSSI());
+}
+
+// ================================================================
+// XỬ LÝ LỆNH TỪ BACKEND (MQTT CALLBACK)
+// ================================================================
