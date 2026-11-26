@@ -1387,3 +1387,154 @@
       len: curve.getLength()
     };
   }
+
+   var _fp = new THREE.Vector3(), _ft = new THREE.Vector3(), _fn = new THREE.Vector3(), _fb = new THREE.Vector3();
+  function limbFrame(L, t) {
+    var f = clamp01(t) * L.segs;
+    var i = Math.min(L.segs - 1, Math.floor(f)), a = f - i;
+    _fp.copy(L.fr.pts[i]).lerp(L.fr.pts[i + 1], a);
+    /* Control points traced off the artwork sit on the MIDLINE of the
+       silhouette, but the silhouette is asymmetric — bare wood below, wood
+       plus cushion above. The tube's own axis is half a cushion lower. */
+    if (L.sink) _fp.y -= L.moss(t) * L.sink;
+    _ft.copy(L.fr.tans[i]).lerp(L.fr.tans[i + 1], a).normalize();
+    _fn.copy(L.fr.nrms[i]).lerp(L.fr.nrms[i + 1], a);
+    _fn.addScaledVector(_ft, -_fn.dot(_ft)).normalize();
+    _fb.crossVectors(_ft, _fn).normalize();
+  }
+
+  /* the finished surface: bark radius plus the moss cushion sitting on it */
+  function limbSurface(L, t, th, outP, outN) {
+    limbFrame(L, t);
+    var steep = Math.min(1, Math.abs(_ft.y) * 1.15);
+    var c = Math.cos(th), s = Math.sin(th);
+    outN.set(_fn.x * c + _fb.x * s, _fn.y * c + _fb.y * s, _fn.z * c + _fb.z * s).normalize();
+    var rw = L.rw(t);
+    outP.copy(_fp).addScaledVector(outN, rw);
+    var cap = mossCap(outP, outN, steep);
+    var d = rw + L.moss(t) * cap * mossLump(outP);
+    outP.copy(_fp).addScaledVector(outN, d);
+    return cap;
+  }
+
+  /* ---- mesh: build the (segs+1) × (radial+1) grid, then take the normal
+          from the grid itself so the displacement is lit, not the tube ---- */
+  function tessellate(L, bag) {
+    var S = L.segs, R = L.radial;
+    var base = bag.pos.length / 3;
+    var grid = new Float32Array((S + 1) * (R + 1) * 3);
+    var gnrm = new Float32Array((S + 1) * (R + 1) * 3);
+    var caps = new Float32Array((S + 1) * (R + 1));
+    var p = new THREE.Vector3(), n = new THREE.Vector3();
+    var i, j, k;
+
+    for (i = 0; i <= S; i++) {
+      for (j = 0; j <= R; j++) {
+        var cap = limbSurface(L, i / S, (j / R) * TAU, p, n);
+        k = (i * (R + 1) + j) * 3;
+        grid[k] = p.x; grid[k + 1] = p.y; grid[k + 2] = p.z;
+        caps[i * (R + 1) + j] = cap;
+      }
+    }
+
+    var a = new THREE.Vector3(), b = new THREE.Vector3(), du = new THREE.Vector3(), dv = new THREE.Vector3();
+    function get(i2, j2, out) {
+      i2 = Math.min(S, Math.max(0, i2));
+      j2 = (j2 + R) % R;                                  /* θ wraps — no seam in the normals */
+      var q = (i2 * (R + 1) + j2) * 3;
+      return out.set(grid[q], grid[q + 1], grid[q + 2]);
+    }
+
+    for (i = 0; i <= S; i++) {
+      for (j = 0; j <= R; j++) {
+        get(i + 1, j, a); get(i - 1, j, b); du.subVectors(a, b);
+        get(i, j + 1, a); get(i, j - 1, b); dv.subVectors(a, b);
+        n.crossVectors(dv, du);
+        if (n.lengthSq() < 1e-12) { limbSurface(L, i / S, (j / R) * TAU, p, n); } else n.normalize();
+        k = (i * (R + 1) + j) * 3;
+        bag.pos.push(grid[k], grid[k + 1], grid[k + 2]);
+        bag.nor.push(n.x, n.y, n.z);
+        /* u is a triangle wave so the bark noise mirrors instead of seaming */
+        bag.inf.push(1 - Math.abs(2 * (j / R) - 1), (i / S) * L.vScale, caps[i * (R + 1) + j]);
+        gnrm[k] = n.x; gnrm[k + 1] = n.y; gnrm[k + 2] = n.z;
+      }
+    }
+    for (i = 0; i < S; i++) for (j = 0; j < R; j++) {
+      var q0 = base + i * (R + 1) + j, q1 = q0 + R + 1;
+      bag.idx.push(q0, q1, q0 + 1, q1, q1 + 1, q0 + 1);
+    }
+    /* the fur is planted straight onto this, so hand it over */
+    L.grid = grid; L.gnrm = gnrm; L.gcaps = caps; L.S = S; L.R = R;
+  }
+
+  /* ---- blades: planted straight onto the shell grid the tessellator just
+          built. Rejection-sampling the surface function instead meant three
+          more evaluations of two fBm fields per accepted blade, which at this
+          density was 1.3 s of blocked main thread — right on top of the
+          entrance animation. Sampling the grid is O(1) per blade, and it also
+          guarantees the fur sits exactly on the surface that gets drawn.
+          Cells are drawn in proportion to area x moss, so density follows the
+          cushion rather than the tube's parameterisation. ---- */
+  function plantBlades(L, count, bag) {
+    var S = L.S, R = L.R, grid = L.grid, gn = L.gnrm, caps = L.gcaps;
+    if (!grid) return 0;
+    var cells = S * R, cdf = new Float64Array(cells), total = 0;
+    var ax, ay, az, bx, by, bz, cx, cy, cz, i, j, k;
+
+    for (i = 0; i < S; i++) for (j = 0; j < R; j++) {
+      var q00 = (i * (R + 1) + j) * 3, q10 = q00 + 3, q01 = ((i + 1) * (R + 1) + j) * 3;
+      ax = grid[q10] - grid[q00]; ay = grid[q10 + 1] - grid[q00 + 1]; az = grid[q10 + 2] - grid[q00 + 2];
+      bx = grid[q01] - grid[q00]; by = grid[q01 + 1] - grid[q00 + 1]; bz = grid[q01 + 2] - grid[q00 + 2];
+      cx = ay * bz - az * by; cy = az * bx - ax * bz; cz = ax * by - ay * bx;
+      var area = Math.sqrt(cx * cx + cy * cy + cz * cz);
+      var cap = 0.25 * (caps[i * (R + 1) + j] + caps[i * (R + 1) + j + 1] +
+                        caps[(i + 1) * (R + 1) + j] + caps[(i + 1) * (R + 1) + j + 1]);
+      total += area * cap * cap;
+      cdf[i * R + j] = total;
+    }
+    if (total <= 0) return 0;
+
+    var planted = 0;
+    for (var b = 0; b < count; b++) {
+      /* binary search the area-weighted cell distribution */
+      var target = rng() * total, lo = 0, hi = cells - 1;
+      while (lo < hi) { var mid = (lo + hi) >> 1; if (cdf[mid] < target) lo = mid + 1; else hi = mid; }
+      i = (lo / R) | 0; j = lo - i * R;
+      var u = rng(), v = rng();
+
+      var i0 = i * (R + 1) + j, i1 = i0 + 1, i2 = i0 + R + 1, i3 = i2 + 1;
+      var w0 = (1 - u) * (1 - v), w1 = u * (1 - v), w2 = (1 - u) * v, w3 = u * v;
+      var cap2 = caps[i0] * w0 + caps[i1] * w1 + caps[i2] * w2 + caps[i3] * w3;
+      if (cap2 < 0.05) continue;
+
+      var p0 = i0 * 3, p1 = i1 * 3, p2 = i2 * 3, p3 = i3 * 3;
+      var px = grid[p0] * w0 + grid[p1] * w1 + grid[p2] * w2 + grid[p3] * w3;
+      var py = grid[p0 + 1] * w0 + grid[p1 + 1] * w1 + grid[p2 + 1] * w2 + grid[p3 + 1] * w3;
+      var pz = grid[p0 + 2] * w0 + grid[p1 + 2] * w1 + grid[p2 + 2] * w2 + grid[p3 + 2] * w3;
+      /* the grid normal is the CUSHION's normal, lumps and all — standing the
+         fur on the smooth cross-section normal instead throws away every bump
+         the displacement just built */
+      var nx = gn[p0] * w0 + gn[p1] * w1 + gn[p2] * w2 + gn[p3] * w3;
+      var ny = gn[p0 + 1] * w0 + gn[p1 + 1] * w1 + gn[p2 + 1] * w2 + gn[p3 + 1] * w3;
+      var nz = gn[p0 + 2] * w0 + gn[p1 + 2] * w1 + gn[p2 + 2] * w2 + gn[p3 + 2] * w3;
+      var nl = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+
+      bag.off.push(px, py, pz);
+      bag.nrm.push(nx / nl, ny / nl, nz / nl);
+      /* One blade in sixteen is a long hair. Uniform-length fur cuts a hard
+         edge against the background; the strays are what make the silhouette
+         read as moss rather than a hedge trimmed with shears. */
+      var stray = rng() < 0.06 ? rand(1.4, 1.9) : 1.0;
+      bag.rnd.push(
+        rng() * TAU,                                       /* yaw          */
+        L.blade((i + v) / S) * (0.45 + 0.60 * cap2) * (0.58 + 0.50 * rng()) * stray,
+        (rng() - 0.5) * 1.15,                              /* lean         */
+        rng()                                              /* per-blade tone */
+      );
+      /* two scales of clumping: broad cushions, and the tufts inside them */
+      bag.aux.push(fbm2(px * 0.85 + 17.0, pz * 0.85 - py * 0.7) * 0.62 +
+                   fbm2(px * 5.60 - 3.3, pz * 5.60 + py * 2.1) * 0.38);
+      planted++;
+    }
+    return planted;
+  }
