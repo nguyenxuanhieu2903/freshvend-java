@@ -1538,3 +1538,338 @@
     }
     return planted;
   }
+
+  /* ---- offshoots: a short recursive fork, two generations deep. The root
+          is a root, not a tree, so these stay stubby — they exist to break
+          the tube's silhouette, not to build a canopy. ---- */
+  function growOffshoot(list, start, dir, len, r0, gen) {
+    var side = new THREE.Vector3().crossVectors(dir, UP);
+    if (side.lengthSq() < 1e-6) side.set(1, 0, 0);
+    side.normalize();
+    var up = new THREE.Vector3().crossVectors(side, dir).normalize();
+    var bow = gen === 0 ? rand(0.10, 0.46) : rand(-0.34, 0.42);
+    var kink = rand(-0.26, 0.26);
+
+    function node(f, u2, k) {
+      return start.clone()
+        .addScaledVector(dir, len * f)
+        .addScaledVector(up, len * u2)
+        .addScaledVector(side, len * k);
+    }
+    var pts = [start.clone(), node(0.32, bow * 0.30, kink * 0.70), node(0.68, bow * 0.85, kink * 0.24), node(1.0, bow, kink * 0.44)];
+    var curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.5);
+    var r1 = r0 * 0.52;
+    var L = {
+      curve: curve, segs: gen === 0 ? 16 : 11, radial: gen === 0 ? 9 : 7,
+      /* draw the last few percent down to a point: tubes are open-ended, and
+         a twig that simply stops shows a flat hollow cap hanging in the air */
+      rw: function (t) { return (r0 + (r1 - r0) * t) * (1 - 0.86 * sstep(0.90, 1.0, t)); },
+      moss: function (t) { return (r0 + (r1 - r0) * t) * 0.95 * (1 - 0.55 * t); },
+      blade: function (t) { return (r0 + (r1 - r0) * t) * 0.30 * (1 - 0.55 * t) + 0.035; },
+      vScale: len * 7.0
+    };
+    L.fr = transportFrames(curve, L.segs);
+    L.len = curve.getLength();
+    list.push(L);
+
+    if (gen >= 1) return;
+    var kids = Math.round(rand(1, 2));
+    for (var i = 0; i < kids; i++) {
+      var tt = 0.34 + (i / Math.max(kids, 1)) * 0.5 + rand(-0.06, 0.06);
+      var pt = curve.getPointAt(Math.min(tt, 0.98));
+      var tan = curve.getTangentAt(Math.min(tt, 0.98)).normalize();
+      var ax = new THREE.Vector3().crossVectors(tan, UP);
+      if (ax.lengthSq() < 1e-6) ax.set(1, 0, 0);
+      ax.normalize().applyAxisAngle(tan, rng() * TAU);
+      var kdir = tan.clone().applyAxisAngle(ax, rand(0.45, 1.05)).addScaledVector(UP, 0.16).normalize();
+      growOffshoot(list, pt, kdir, len * rand(0.50, 0.74), (r0 + (r1 - r0) * tt) * rand(0.58, 0.78), gen + 1);
+    }
+  }
+
+  /* ================================================================== *
+   * the two roots, traced off the artwork's alpha channel
+   * ================================================================== */
+  var knot = function (t, a, b) {
+    return 1 + a * Math.sin(t * 23.0 + 1.3) + b * Math.sin(t * 57.0 + 0.4) + b * 0.5 * Math.sin(t * 103.0 + 2.2);
+  };
+
+  function buildNearRoot() {
+    var P = makeP(ARCH.aspect);
+    var limbs = [];
+
+    /* the long snaking root: enters left low, crests at 25%, drops into the
+       valley at 50%, then runs out through the right edge */
+    limbs.push(makeLimb(P, [
+      [-0.075, 0.845, -0.62],
+      [ 0.000, 0.790, -0.38],
+      [ 0.107, 0.695,  0.04],
+      [ 0.196, 0.588,  0.28],
+      [ 0.250, 0.566,  0.34],
+      [ 0.304, 0.603,  0.22],
+      [ 0.411, 0.733, -0.10],
+      [ 0.500, 0.779, -0.28],
+      [ 0.585, 0.742, -0.05],
+      [ 0.696, 0.661,  0.20],
+      [ 0.750, 0.672,  0.14],
+      [ 0.850, 0.640, -0.08],
+      [ 0.930, 0.626, -0.30],
+      [ 1.030, 0.634, -0.55],
+      [ 1.090, 0.638, -0.70]
+    ], {
+      segs: 300, radial: 26, vScale: 30,
+      /* half-band, local units, sampled every 10% of the run */
+      rt: [0.575, 0.590, 0.630, 0.680, 0.695, 0.615, 0.580, 0.480, 0.550, 0.550, 0.520], sink: 0.5
+    }));
+
+    /* the arch: lifts off the root at 55%, crowns at 73% with a deep moss
+       cushion, then plants its leg through the root and off the bottom */
+    /* The arch is not one bent tube. Measured column by column, the crown is
+       0.88 units wide and 1.90 tall with a 0.86 × 0.94 eye punched under it —
+       that is two steep legs fused at the top, not a hoop. Built as two limbs
+       that interpenetrate at the peak, which is also how the reference reads:
+       different bark and a different moss line on each side. */
+    var legRw   = table([0.30, 0.28, 0.26, 0.25, 0.24, 0.23, 0.22]);
+    var legMoss = table([0.24, 0.24, 0.23, 0.22, 0.21, 0.20, 0.19]);
+    limbs.push(makeLimb(P, [
+      [0.532, 0.860,  0.20],
+      [0.572, 0.700,  0.28],
+      [0.612, 0.540,  0.34],
+      [0.652, 0.390,  0.33],
+      [0.690, 0.263,  0.26],
+      [0.722, 0.180,  0.15],
+      [0.752, 0.163,  0.02]
+    ], {
+      segs: 130, radial: 20, vScale: 22,
+      rw:   function (t) { return legRw(t) * knot(t, 0.05, 0.022); },
+      moss: legMoss
+    }));
+
+    var legR   = table([0.23, 0.25, 0.27, 0.30, 0.33, 0.36, 0.40]);
+    var legRm  = table([0.19, 0.20, 0.21, 0.22, 0.24, 0.25, 0.26]);
+    limbs.push(makeLimb(P, [
+      [0.706, 0.176, -0.02],
+      [0.740, 0.158,  0.02],
+      [0.772, 0.245, -0.08],
+      [0.797, 0.400, -0.18],
+      [0.816, 0.570, -0.22],
+      [0.836, 0.760, -0.18],
+      [0.858, 0.950, -0.08],
+      [0.888, 1.180,  0.04]
+    ], {
+      segs: 150, radial: 20, vScale: 22,
+      rw:   function (t) { return legR(t) * knot(t, 0.05, 0.022); },
+      moss: legRm
+    }));
+
+    return limbs;
+  }
+
+  function buildFarRoot() {
+    var P = makeP(FAR.aspect);
+    return [makeLimb(P, [
+      [-0.060, 0.880, -0.35],
+      [ 0.100, 0.762, -0.05],
+      [ 0.210, 0.698,  0.22],
+      [ 0.300, 0.570,  0.30],
+      [ 0.410, 0.467,  0.18],
+      [ 0.500, 0.500, -0.05],
+      [ 0.600, 0.622, -0.22],
+      [ 0.720, 0.748, -0.26],
+      [ 0.800, 0.788, -0.08],
+      [ 0.900, 0.660,  0.14],
+      [ 0.990, 0.454,  0.28]
+    ], {
+      segs: 220, radial: 20, vScale: 26,
+      rt: [0.760, 0.900, 0.900, 0.960, 0.925, 0.950, 1.020, 1.020, 0.990, 1.100, 1.300], sink: 0.5
+    })];
+  }
+
+  /* ================================================================== *
+   * shaders
+   * ================================================================== */
+  var LIGHT_GLSL = [
+    'uniform vec3 uKeyDir, uKeyCol, uFillDir, uFillCol, uAmbCol, uHazeCol;',
+    'uniform float uHaze, uFog, uMaskOn, uHazeLift;',
+    'uniform vec4 uMask;',
+    'vec3 litSurface(vec3 N, vec3 albedo, float ao){',
+    '  float k = max(dot(N, uKeyDir), 0.0);',
+    '  float f = max(dot(N, uFillDir), 0.0);',
+    '  float sky = 0.5 + 0.5 * N.y;',
+    '  return albedo * (uKeyCol * (0.09 + 1.05 * k) + uFillCol * (0.04 + 0.34 * f) + uAmbCol * (0.35 + 0.65 * sky)) * ao;',
+    '}',
+    /* Aerial perspective: the reference reads noticeably paler and less
+       saturated at the crown than down in the light pool, so lift toward the
+       lit-air tone as the form climbs.
+       Weighted by the surface's own luminance, because a flat mix puts a
+       floor under every shadow — that one change is the difference between
+       moss with 9-to-67 of tonal range and moss with 22-to-37. Distant
+       geometry gets uHazeLift near 1 and does lift its darks, which is what
+       air actually does at that range. */
+    'vec3 aerial(vec3 c, float h){',
+    '  float amt = clamp(uFog + uHaze * smoothstep(0.05, 0.95, h), 0.0, 1.0);',
+    '  float gain = smoothstep(0.003, 0.075, dot(c, vec3(0.30, 0.59, 0.11)));',
+    '  return mix(c, uHazeCol, amt * mix(uHazeLift, 1.0, gain));',
+    '}',
+    /* ── survey pulse ────────────────────────────────────────────────
+       A wavefront expands from one point on the left of the frame and the
+       root only exists behind it, so the branch is drawn in as the pulse
+       passes over it. `lag` holds the solid a beat behind the wireframe,
+       which is what makes the mesh read as a scan rather than as a wipe. The
+       front is wobbled by a couple of long sines so it never reads as a
+       clean circle sweeping the screen. */
+    'uniform vec3 uScanO;',
+    'uniform float uScanR, uScanOn;',
+    'bool unscanned(vec3 w, float lag){',
+    '  if (uScanOn < 0.5) return false;',
+    '  float wob = sin(w.y * 0.011 + w.x * 0.007) * 36.0 + sin(w.z * 0.021 + w.y * 0.013) * 17.0;',
+    '  return distance(w, uScanO) > uScanR - lag + wob;',
+    '}',
+    /* the far ridge has to dissolve before it reaches the cards, and into the
+       floor light below it — the same two masks the artwork build carried */
+    'float maskAt(vec3 lp, float boxH){',
+    '  if (uMaskOn < 0.5) return 1.0;',
+    '  float e = 1.0 - smoothstep(uMask.x, uMask.y, lp.x);',
+    '  float l = smoothstep(uMask.z, uMask.w, lp.y / boxH + 0.5);',
+    '  return clamp(e * l, 0.0, 1.0);',
+    '}'
+  ].join('\n');
+
+  var NOISE_GLSL = [
+    'vec2 hash22(vec2 p){',
+    '  p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));',
+    '  return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);',
+    '}',
+    /* gradient noise, not value noise: value noise puts its extrema on the
+       lattice, which on a tube shows up as blobs in rows */
+    'float gnoise(vec2 p){',
+    '  vec2 i = floor(p), f = fract(p);',
+    '  vec2 u = f * f * (3.0 - 2.0 * f);',
+    '  return mix(mix(dot(hash22(i + vec2(0,0)), f - vec2(0,0)),',
+    '                 dot(hash22(i + vec2(1,0)), f - vec2(1,0)), u.x),',
+    '             mix(dot(hash22(i + vec2(0,1)), f - vec2(0,1)),',
+    '                 dot(hash22(i + vec2(1,1)), f - vec2(1,1)), u.x), u.y);',
+    '}',
+    'const mat2 ROT = mat2(0.80, 0.60, -0.60, 0.80);',
+    'float gfbm(vec2 p){ float a = 0.5, s = 0.0; for (int i = 0; i < 5; i++){ s += a * gnoise(p); p = ROT * p * 2.03; a *= 0.5; } return s; }',
+    'float ridged(vec2 p){ float a = 0.5, s = 0.0; for (int i = 0; i < 4; i++){ s += a * (1.0 - abs(gnoise(p) * 2.0)); p = ROT * p * 2.11; a *= 0.5; } return s; }'
+  ].join('\n');
+
+  var WIND_GLSL = [
+    'uniform float uTime;',
+    'uniform float uWind;',
+    'vec3 windOffset(vec3 p){',
+    '  float ph = p.x * 0.42 + p.y * 0.30 + p.z * 0.70;',
+    '  float a = 0.030 * uWind;',
+    '  return vec3((sin(uTime * 0.58 + ph) + 0.45 * sin(uTime * 1.37 + ph * 2.3)) * a,',
+    '              sin(uTime * 0.79 + ph * 1.7) * a * 0.42,',
+    '              sin(uTime * 0.51 + ph * 0.9) * a * 0.55);',
+    '}'
+  ].join('\n');
+
+  /* ---- bark + moss cushion ---- */
+  function barkMaterial(cfg) {
+    return new THREE.ShaderMaterial({
+      uniforms: cfg.uniforms,
+      extensions: { derivatives: true },
+      vertexShader: WIND_GLSL + [
+        'attribute vec3 inf;',
+        'varying vec3 vN; varying vec3 vW; varying vec3 vInf; varying float vH; varying vec3 vL;',
+        'uniform float uBoxH;',
+        'void main(){',
+        '  vInf = inf;',
+        '  vN = normalize(normal);',
+        '  vec3 p = position + windOffset(position) * (0.35 + 0.65 * inf.z);',
+        '  vL = p;',
+        '  vH = clamp(p.y / uBoxH + 0.5, 0.0, 1.0);',
+        '  vec4 wp = modelMatrix * vec4(p, 1.0);',
+        '  vW = wp.xyz;',
+        '  gl_Position = projectionMatrix * viewMatrix * wp;',
+        '}'
+      ].join('\n'),
+      fragmentShader: NOISE_GLSL + LIGHT_GLSL + [
+        'precision highp float;',
+        'uniform float uAlpha; uniform float uBoxH;',
+        'varying vec3 vN; varying vec3 vW; varying vec3 vInf; varying float vH; varying vec3 vL;',
+
+        /* Bark grain is strongly anisotropic — features run ten times longer
+           along the limb than around it, so squash the domain in v first. */
+        'vec2 barkDomain(vec2 uv){ return vec2(uv.x * 7.0, uv.y * 0.62); }',
+        'float barkHeight(vec2 uv){',
+        '  vec2 q = barkDomain(uv);',
+        '  vec2 w = vec2(gfbm(q * 0.5), gfbm(q * 0.5 + 9.1));',
+        '  vec2 p = q + w * 0.60;',                        /* meander the fissures */
+        '  float ridge = ridged(p);',
+        '  float plate = smoothstep(-0.25, 0.45, gfbm(q * 0.34));',
+        '  float crack = smoothstep(0.30, 0.86, ridged(p * 1.9 + 4.0));',
+        '  float fine  = gfbm(p * 5.5) * 0.5 + 0.5;',
+        '  return (ridge - 0.5) * 1.85 * mix(0.35, 1.0, plate) - crack * 0.42 + fine * 0.20;',
+        '}',
+        /* bump-map an unparametrised surface from screen-space derivatives */
+        'vec3 bumped(vec3 N, vec3 p, float h, float k){',
+        '  vec3 dpx = dFdx(p), dpy = dFdy(p);',
+        '  float dhx = dFdx(h) * k, dhy = dFdy(h) * k;',
+        '  vec3 r1 = cross(dpy, N), r2 = cross(N, dpx);',
+        '  float det = dot(dpx, r1);',
+        '  vec3 grad = sign(det) * (dhx * r1 + dhy * r2);',
+        '  return normalize(abs(det) * N - grad);',
+        '}',
+
+        'void main(){',
+        '  if (unscanned(vW, 520.0)) discard;',
+        '  vec2 uv = vInf.xy;',
+        '  float cap = vInf.z;',
+        '  float m = smoothstep(0.05, 0.42, cap);',
+        '  vec3 N = normalize(vN);',
+
+        '  float h = barkHeight(uv);',
+        '  N = bumped(N, vW, h, mix(0.26, 0.06, m));',
+
+        '  vec2 q = barkDomain(uv);',
+        '  float grain  = gfbm(q * 1.25) * 0.5 + 0.5;',
+        '  float mottle = gfbm(q * 0.28 + 21.0) * 0.5 + 0.5;',
+        '  float crack  = smoothstep(0.30, 0.86, ridged(q * 1.9 + 4.0));',
+
+        /* Old rain-forest wood: silvered grey where the light rakes it,
+           near-black in the splits, with a slow drift into damp umber. */
+        '  vec3 silver = mix(vec3(0.020, 0.019, 0.018), vec3(0.290, 0.283, 0.264), grain);',
+        '  vec3 umber  = mix(vec3(0.024, 0.019, 0.016), vec3(0.175, 0.140, 0.110), grain);',
+        '  vec3 wood   = mix(silver, umber, mottle * 0.78);',
+        '  wood *= 1.0 - 0.70 * crack;',
+
+        /* the cushion: two greens, mottled, darkest where it packs deepest */
+        '  float mo = gfbm(vec2(vW.x * 2.6, vW.z * 2.6 + vW.y * 1.9)) * 0.5 + 0.5;',
+        '  vec3 moss = mix(vec3(0.0204, 0.0311, 0.0050), vec3(0.0914, 0.1392, 0.0227), mo);',
+        '  moss *= 0.80 + 0.42 * cap;',
+
+        '  vec3 col = mix(wood, moss, m);',
+        /* a pale lichen crust where the wood shows and faces up */
+        '  float lich = smoothstep(0.56, 0.84, gfbm(q * 0.62 + 31.0) * 0.5 + 0.5);',
+        '  lich *= (1.0 - m) * smoothstep(-0.10, 0.70, N.y) * smoothstep(0.15, 0.50, h);',
+        '  col = mix(col, vec3(0.162, 0.176, 0.132), lich * 0.78);',
+
+        /* Contact shadow along the moss line. The cushion overhangs the bark
+           it sits on, and without this the two materials meet on a clean
+           edge that reads as a paint mask rather than as one thing growing
+           on another. */
+        '  float contact = smoothstep(0.0, 0.16, cap) * (1.0 - smoothstep(0.16, 0.60, cap));',
+        '  col *= 1.0 - 0.48 * contact;',
+        '  float ao = mix(0.30, 1.02, smoothstep(-0.40, 0.62, h)) * mix(1.0, 0.86, m);',
+        '  vec3 lit = litSurface(N, col, ao);',
+
+        '  vec3 V = normalize(cameraPosition - vW);',
+        '  lit += col * uAmbCol * pow(1.0 - max(dot(N, V), 0.0), 4.0) * 0.85;',
+        '  float spec = pow(max(dot(reflect(-uKeyDir, N), V), 0.0), 20.0);',
+        '  lit += uKeyCol * spec * 0.045 * (1.0 - m) * ao;',
+
+        '  float a = uAlpha * maskAt(vL, uBoxH);',
+        '  if (a < 0.004) discard;',
+        '  gl_FragColor = vec4(aerial(lit, vH), a);',
+        '  #include <tonemapping_fragment>',
+        '  #include <encodings_fragment>',
+        '}'
+      ].join('\n'),
+      transparent: cfg.transparent === true,
+      depthWrite: cfg.depthWrite !== false,
+      side: THREE.DoubleSide
+    });
+  }
