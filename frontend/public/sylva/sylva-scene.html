@@ -1294,3 +1294,96 @@
       return new THREE.Vector3((fx - 0.5) * BOXW, (0.5 - fy) * bh, z || 0);
     };
   }
+
+  function transportFrames(curve, segs) {
+    var pts = [], tans = [], nrms = [], i;
+    for (i = 0; i <= segs; i++) {
+      pts.push(curve.getPointAt(i / segs));
+      tans.push(curve.getTangentAt(i / segs).normalize());
+    }
+    var ref = Math.abs(tans[0].y) < 0.9 ? UP : new THREE.Vector3(1, 0, 0);
+    nrms.push(new THREE.Vector3().crossVectors(tans[0], ref).normalize());
+    for (i = 1; i <= segs; i++) {
+      var axis = new THREE.Vector3().crossVectors(tans[i - 1], tans[i]);
+      var n = nrms[i - 1].clone();
+      if (axis.lengthSq() > 1e-12) {
+        axis.normalize();
+        n.applyAxisAngle(axis, Math.acos(Math.min(1, Math.max(-1, tans[i - 1].dot(tans[i])))));
+      }
+      nrms.push(n.normalize());
+    }
+    return { pts: pts, tans: tans, nrms: nrms };
+  }
+
+  /* How mossy a point on the bark is. Driven by how far the surface faces the
+     light rather than by the tube's own parameters — the arch turns through
+     the vertical, and any "up" defined on the cross-section goes degenerate
+     there. Two noise fields ride on top: a fine one that frays the moss line
+     so it never reads as a stripe, and a slow one that opens bald patches of
+     bare wood. Both are sampled in world space, so neighbouring limbs share
+     the same weather. */
+  function mossCap(p, n, steep) {
+    /* On a limb lying flat the camera-facing flank has to stay bark: the
+       reference's moss line sits ~25° above horizontal and everything below
+       it is pale wood. Weight n.z any harder than that and the cushion wraps
+       right around the limb.
+       On a limb standing UP there is no upward face at all — every
+       cross-section normal is horizontal — so the criterion has to roll over
+       to "faces the light", or the arch's legs come out bald. */
+    var upness = n.y + n.z * (0.10 + 0.42 * steep) - n.x * (0.05 + 0.45 * steep);
+    /* Two scales on the moss line. The fine one keeps it from reading as a
+       painted stripe; the coarse one is what makes moss send tongues down the
+       flank and lets bare wood push up through the cushion. */
+    var fray = fbm2(p.x * 2.30 + 4.4, p.z * 2.30 - p.y * 1.90) - 0.5;
+    var tongue = fbm2(p.x * 0.95 + 21.0, p.z * 0.95 - p.y * 0.80) - 0.5;
+    var patch = fbm2(p.x * 0.52 + 9.3, p.z * 0.52 + p.y * 0.44);
+    var c = sstep(0.16, 0.70, upness + fray * 0.40 + tongue * 0.52);
+    /* no floor under the patch term: the cushion has to go properly bald in
+       places or the bark never gets to be seen, and the bark is half of what
+       makes the root read as wood rather than topiary */
+    return c * sstep(0.10, 0.50, patch);
+  }
+  /* Lumpiness of the cushion itself. Moss is never a smooth offset — without
+     this the tube reads as an extruded pipe with a green stripe painted on
+     it, whatever the fur does on top. Two scales: broad cushions, and a
+     finer bobble inside them. */
+  function mossLump(p) {
+    return 0.66 + 0.48 * fbm2(p.x * 2.4 - 2.2, p.z * 2.4 + p.y * 2.0)
+                + 0.18 * fbm2(p.x * 7.3 + 5.1, p.z * 7.3 - p.y * 4.4) - 0.09;
+  }
+
+  /* A limb's thickness is read off the artwork, not invented: `rt` is the
+     half-height of the moss-plus-wood band measured column by column out of
+     the original PNG's alpha, in local units. Splitting it 0.52 bark / 0.88
+     cushion reproduces the reference's section — moss over roughly the top
+     45% of the band, bare wood under it. */
+  function table(vals) {
+    return function (t) {
+      var x = clamp01(t) * (vals.length - 1);
+      var i = Math.min(vals.length - 2, Math.floor(x));
+      return vals[i] + (vals[i + 1] - vals[i]) * (x - i);
+    };
+  }
+
+  function makeLimb(P, pts, opt) {
+    var v3 = pts.map(function (q) { return P(q[0], q[1], q[2]); });
+    var curve = new THREE.CatmullRomCurve3(v3, false, 'centripetal', 0.5);
+    var rw = opt.rw, moss = opt.moss;
+    if (opt.rt) {
+      var rt = table(opt.rt);
+      rw = function (t) { return rt(t) * 0.52 * knot(t, 0.05, 0.024); };
+      moss = function (t) { return rt(t) * 0.88; };
+    }
+    return {
+      curve: curve,
+      segs: opt.segs,
+      radial: opt.radial,
+      rw: rw,
+      moss: moss,
+      blade: opt.blade || function (t) { return moss(t) * 0.055 + 0.014; },
+      sink: opt.sink || 0,
+      vScale: opt.vScale,
+      fr: transportFrames(curve, opt.segs),
+      len: curve.getLength()
+    };
+  }
