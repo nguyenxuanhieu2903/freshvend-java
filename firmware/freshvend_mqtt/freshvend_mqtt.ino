@@ -308,3 +308,106 @@ void onMqttMessage(char* topic, byte* payloadBytes, unsigned int length) {
 // ================================================================
 // QUẢN LÝ KẾT NỐI WI-FI VÀ MQTT
 // ================================================================
+unsigned long lastWifiRetry = 0;
+
+void connectWiFi() {
+  Serial.println("\n=================================================");
+  Serial.println("[WIFI] DANG KHOI TAO KET NOI 4G HOTSPOT...");
+
+  WiFi.disconnect(true);
+  delay(200);
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
+
+  // 1. Mở rộng dải kênh Wi-Fi từ kênh 1 đến 13 (Chuẩn Việt Nam)
+  // Điện thoại Xiaomi ở Việt Nam rất hay phát sóng ở Kênh 12 hoặc 13
+  wifi_country_t country = {"VN", 1, 13, 20, WIFI_COUNTRY_POLICY_AUTO};
+  esp_wifi_set_country(&country);
+
+  // 2. Quét thực tế xem có thấy sóng 'Quoc Vinh' không
+  Serial.println("[WIFI SCAN] Dang do tim song xung quanh...");
+  int n = WiFi.scanNetworks(false, true);
+  bool found = false;
+  int targetChannel = 0;
+  for (int i = 0; i < n; i++) {
+    String s = WiFi.SSID(i);
+    if (s == WIFI_SSID) {
+      found = true;
+      targetChannel = WiFi.channel(i);
+      Serial.printf("  ===> TIM THAY 'Quoc Vinh'! Kenh: %d | Song: %d dBm | Auth: %d\n", 
+                    targetChannel, WiFi.RSSI(i), (int)WiFi.encryptionType(i));
+      break;
+    }
+  }
+
+  if (!found) {
+    Serial.println("  ===> [CANH BAO] ESP32 KHONG THAY song 'Quoc Vinh'!");
+    Serial.println("       Cac mang tim thay gan do:");
+    for (int i = 0; i < n && i < 5; i++) {
+      Serial.printf("       + '%s' (Kenh %d, %d dBm)\n", WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i));
+    }
+  }
+
+  String ssid = WIFI_SSID;
+  String pass = WIFI_PASS;
+
+  Serial.printf("[WIFI] Bat dau ket noi vao '%s'...\n", ssid.c_str());
+  if (pass.length() > 0) {
+    WiFi.begin(ssid.c_str(), pass.c_str(), targetChannel);
+  } else {
+    WiFi.begin(ssid.c_str());
+  }
+
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 30) {
+    delay(500);
+    Serial.print(".");
+    attempts++;
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n[WIFI] DA KET NOI THANH CONG!");
+    Serial.printf("[WIFI] IP: %s | RSSI: %d dBm\n", WiFi.localIP().toString().c_str(), WiFi.RSSI());
+
+    // Cấu hình đồng bộ thời gian SNTP qua internet (UTC)
+    configTime(0, 0, "pool.ntp.org", "time.google.com");
+    Serial.println("[SNTP] Dang dong bo thoi gian UTC...");
+  } else {
+    int st = WiFi.status();
+    Serial.printf("\n[WIFI] Ket noi chua thanh cong! Status code = %d (", st);
+    if (st == 1) Serial.print("WL_NO_SSID_AVAIL");
+    else if (st == 4) Serial.print("WL_CONNECT_FAILED - Sai pass");
+    else if (st == 6) Serial.print("WL_DISCONNECTED - Chua vao duoc");
+    else Serial.print("Status khac");
+    Serial.println("). Se thu lai sau 10 giay...");
+  }
+}
+
+void reconnectMqtt() {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  while (!mqttClient.connected()) {
+    Serial.printf("[MQTT] Dang ket noi toi EMQX Cloud Broker: %s:%d...\n", MQTT_BROKER, MQTT_PORT);
+
+    // cleanSession = true theo muc 2.3 cua MQTT_CONTRACT.md
+    if (mqttClient.connect(MQTT_CLIENT_ID, MQTT_USERNAME, MQTT_PASSWORD, nullptr, 0, false, nullptr, true)) {
+      Serial.println("[MQTT] KET NOI THANH CONG TOI BROKER!");
+
+      // Đăng ký nhận lệnh nhả hàng từ Backend (QoS 1)
+      if (mqttClient.subscribe(TOPIC_COMMANDS, 1)) {
+        Serial.printf("[MQTT SUB] Da subscribe topic: %s\n", TOPIC_COMMANDS);
+      }
+
+      // Gửi ngay 1 heartbeat đầu tiên
+      publishHeartbeat();
+      lastHeartbeatTime = millis();
+    } else {
+      Serial.printf("[MQTT ERROR] That bai, rc=%d. Thu lai sau 4 giay...\n", mqttClient.state());
+      delay(4000);
+    }
+  }
+}
+
+// ================================================================
+// SETUP
+// ================================================================
