@@ -308,3 +308,191 @@ void onMqttMessage(char* topic, byte* payloadBytes, unsigned int length) {
 // ================================================================
 // QUẢN LÝ KẾT NỐI WI-FI VÀ MQTT
 // ================================================================
+unsigned long lastWifiRetry = 0;
+
+void connectWiFi() {
+  Serial.println("\n=================================================");
+  Serial.println("[WIFI] DANG KHOI TAO KET NOI 4G HOTSPOT...");
+
+  WiFi.disconnect(true);
+  delay(200);
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
+
+  // 1. Mở rộng dải kênh Wi-Fi từ kênh 1 đến 13 (Chuẩn Việt Nam)
+  // Điện thoại Xiaomi ở Việt Nam rất hay phát sóng ở Kênh 12 hoặc 13
+  wifi_country_t country = {"VN", 1, 13, 20, WIFI_COUNTRY_POLICY_AUTO};
+  esp_wifi_set_country(&country);
+
+  // 2. Quét thực tế xem có thấy sóng 'Quoc Vinh' không
+  Serial.println("[WIFI SCAN] Dang do tim song xung quanh...");
+  int n = WiFi.scanNetworks(false, true);
+  bool found = false;
+  int targetChannel = 0;
+  for (int i = 0; i < n; i++) {
+    String s = WiFi.SSID(i);
+    if (s == WIFI_SSID) {
+      found = true;
+      targetChannel = WiFi.channel(i);
+      Serial.printf("  ===> TIM THAY 'Quoc Vinh'! Kenh: %d | Song: %d dBm | Auth: %d\n", 
+                    targetChannel, WiFi.RSSI(i), (int)WiFi.encryptionType(i));
+      break;
+    }
+  }
+
+  if (!found) {
+    Serial.println("  ===> [CANH BAO] ESP32 KHONG THAY song 'Quoc Vinh'!");
+    Serial.println("       Cac mang tim thay gan do:");
+    for (int i = 0; i < n && i < 5; i++) {
+      Serial.printf("       + '%s' (Kenh %d, %d dBm)\n", WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i));
+    }
+  }
+
+  String ssid = WIFI_SSID;
+  String pass = WIFI_PASS;
+
+  Serial.printf("[WIFI] Bat dau ket noi vao '%s'...\n", ssid.c_str());
+  if (pass.length() > 0) {
+    WiFi.begin(ssid.c_str(), pass.c_str(), targetChannel);
+  } else {
+    WiFi.begin(ssid.c_str());
+  }
+
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 30) {
+    delay(500);
+    Serial.print(".");
+    attempts++;
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n[WIFI] DA KET NOI THANH CONG!");
+    Serial.printf("[WIFI] IP: %s | RSSI: %d dBm\n", WiFi.localIP().toString().c_str(), WiFi.RSSI());
+
+    // Cấu hình đồng bộ thời gian SNTP qua internet (UTC)
+    configTime(0, 0, "pool.ntp.org", "time.google.com");
+    Serial.println("[SNTP] Dang dong bo thoi gian UTC...");
+  } else {
+    int st = WiFi.status();
+    Serial.printf("\n[WIFI] Ket noi chua thanh cong! Status code = %d (", st);
+    if (st == 1) Serial.print("WL_NO_SSID_AVAIL");
+    else if (st == 4) Serial.print("WL_CONNECT_FAILED - Sai pass");
+    else if (st == 6) Serial.print("WL_DISCONNECTED - Chua vao duoc");
+    else Serial.print("Status khac");
+    Serial.println("). Se thu lai sau 10 giay...");
+  }
+}
+
+void reconnectMqtt() {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  while (!mqttClient.connected()) {
+    Serial.printf("[MQTT] Dang ket noi toi EMQX Cloud Broker: %s:%d...\n", MQTT_BROKER, MQTT_PORT);
+
+    // cleanSession = true theo muc 2.3 cua MQTT_CONTRACT.md
+    if (mqttClient.connect(MQTT_CLIENT_ID, MQTT_USERNAME, MQTT_PASSWORD, nullptr, 0, false, nullptr, true)) {
+      Serial.println("[MQTT] KET NOI THANH CONG TOI BROKER!");
+
+      // Đăng ký nhận lệnh nhả hàng từ Backend (QoS 1)
+      if (mqttClient.subscribe(TOPIC_COMMANDS, 1)) {
+        Serial.printf("[MQTT SUB] Da subscribe topic: %s\n", TOPIC_COMMANDS);
+      }
+
+      // Gửi ngay 1 heartbeat đầu tiên
+      publishHeartbeat();
+      lastHeartbeatTime = millis();
+    } else {
+      Serial.printf("[MQTT ERROR] That bai, rc=%d. Thu lai sau 4 giay...\n", mqttClient.state());
+      delay(4000);
+    }
+  }
+}
+
+// ================================================================
+// SETUP
+// ================================================================
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+
+  Serial.println("\n========================================================");
+  Serial.println("  FRESHVEND - ESP32-C3 SUPER MINI FIRMWARE (MQTT TLS)   ");
+  Serial.println("  Machine ID: " MACHINE_ID " | Broker: EMQX Cloud       ");
+  Serial.println("========================================================");
+
+  // Mở bộ nhớ NVS Flash
+  preferences.begin("freshvend-wifi", false);
+
+  // Cấu hình PWM cho ESP32-C3
+  ESP32PWM::allocateTimer(0);
+  ESP32PWM::allocateTimer(1);
+  ESP32PWM::allocateTimer(2);
+  ESP32PWM::allocateTimer(3);
+
+  servo1.setPeriodHertz(50);
+  servo2.setPeriodHertz(50);
+  servo3.setPeriodHertz(50);
+
+  servo1.attach(SERVO1_PIN, 500, 2400);
+  servo2.attach(SERVO2_PIN, 500, 2400);
+  servo3.attach(SERVO3_PIN, 500, 2400);
+
+  stopAllServos();
+
+  // Bỏ qua xác thực CA Certificate đối với TLS trong giai đoạn thử nghiệm prototype
+  secureClient.setInsecure();
+
+  // Cấu hình MQTT Client
+  mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
+  mqttClient.setCallback(onMqttMessage);
+  mqttClient.setBufferSize(1024); // Đảm bảo buffer đủ chứa payload JSON UUID
+
+  // Kết nối Wi-Fi
+  connectWiFi();
+}
+
+// ================================================================
+// LOOP (VÒNG LẶP CHÍNH HOÀN TOÀN NON-BLOCKING)
+// ================================================================
+void loop() {
+  // 1. Duy trì kết nối Wi-Fi (Thu lai sau moi 10 giay, tranh bi spam gay ra loi 'sta is connecting')
+  if (WiFi.status() != WL_CONNECTED) {
+    if (millis() - lastWifiRetry >= 10000) {
+      lastWifiRetry = millis();
+      connectWiFi();
+    }
+    return; // Khi chua co WiFi thi chua the ket noi MQTT
+  }
+
+  // 2. Duy trì kết nối MQTT
+  if (!mqttClient.connected()) {
+    reconnectMqtt();
+  }
+  mqttClient.loop();
+
+  // 3. Quản lý dừng động cơ sau khi hết thời gian chạy
+  if (isExecuting && millis() >= motorStopTime) {
+    stopMotor(executingSlot);
+    Serial.printf("[MOTOR] Slot %d hoan thanh chu ky nhan hang!\n", executingSlot);
+
+    // Gửi sự kiện DISPENSE_RESULT thành công
+    publishDispenseResult(currentCommandId, currentOrderId, executingSlot, "SUCCESS");
+
+    // Lưu commandId vào NVS để chống lặp
+    preferences.putString("lastCmd", currentCommandId);
+
+    // Trả cờ bận về false
+    isExecuting = false;
+    executingSlot = -1;
+    currentCommandId = "";
+    currentOrderId = "";
+  }
+
+  // 4. Phát Heartbeat định kỳ mỗi 30 giây
+  if (millis() - lastHeartbeatTime >= HEARTBEAT_INTERVAL_MS) {
+    lastHeartbeatTime = millis();
+    if (mqttClient.connected()) {
+      publishHeartbeat();
+    }
+  }
+}
