@@ -2392,3 +2392,53 @@
         k++;
       }
     }
+
+    if (fP.length) {
+      var fg = fernGeometry();
+      fg.setAttribute('iPos',  new THREE.InstancedBufferAttribute(new Float32Array(fP), 3));
+      fg.setAttribute('iQuat', new THREE.InstancedBufferAttribute(new Float32Array(fQ), 4));
+      fg.setAttribute('iRnd',  new THREE.InstancedBufferAttribute(new Float32Array(fR), 2));
+      fg.instanceCount = fP.length / 3;
+      var fern = new THREE.Mesh(fg, fernMaterial({ uniforms: uni }));
+      fern.frustumCulled = false;
+      fern.renderOrder = opt.order + 0.2;
+      group.add(fern);
+    }
+
+    if (wP.length) {
+      var wg = new THREE.InstancedBufferGeometry();
+      wg.setAttribute('position', new THREE.Float32BufferAttribute([-0.5,-0.5,0, 0.5,-0.5,0, 0.5,0.5,0, -0.5,0.5,0], 3));
+      wg.setAttribute('uv', new THREE.Float32BufferAttribute([0,0, 1,0, 1,1, 0,1], 2));
+      wg.setIndex([0,1,2, 0,2,3]);
+      wg.setAttribute('iPos', new THREE.InstancedBufferAttribute(new Float32Array(wP), 3));
+      wg.setAttribute('iRnd', new THREE.InstancedBufferAttribute(new Float32Array(wR), 2));
+      wg.instanceCount = wP.length / 3;
+      var fm = flowerMaterial({ uniforms: uni });
+      fm.uniforms.uMap = { value: makeFlowerTexture() };
+      var blooms = new THREE.Mesh(wg, fm);
+      blooms.frustumCulled = false;
+      blooms.renderOrder = opt.order + 0.3;
+      group.add(blooms);
+    }
+
+    if (opt.wire) {
+      var wpos = [];
+      for (i = 0; i < limbs.length; i++) buildWire(limbs[i], wpos);
+      if (wpos.length) {
+        var wgeo = new THREE.BufferGeometry();
+        wgeo.setAttribute('position', new THREE.Float32BufferAttribute(wpos, 3));
+        var wmesh = new THREE.LineSegments(wgeo, wireMaterial());
+        wmesh.frustumCulled = false;
+        wmesh.renderOrder = 8;
+        group.add(wmesh);
+        wireMeshes.push(wmesh);
+      }
+    }
+
+    /* the shell grids were scratch for the fur — ~0.7 MB of typed array per
+       root that nothing reads again */
+    for (i = 0; i < limbs.length; i++) { limbs[i].grid = limbs[i].gnrm = limbs[i].gcaps = null; }
+
+    group.userData = { uni: uni, blades: bg.instanceCount };
+    return group;
+  }
