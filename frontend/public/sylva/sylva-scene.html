@@ -2152,3 +2152,126 @@
       ].join('\n')
     });
   }
+
+  /* ---- the tiny white flowers scattered through the moss ---- */
+  var flowerTex = null;
+  function makeFlowerTexture() {
+    if (flowerTex) return flowerTex;
+    /* A spray, not a bloom. One five-petal flower at this size renders as a
+       little asterisk; the reference's whites are clusters of florets, so
+       the texture carries the whole cluster and each instance is one spray. */
+    var c = document.createElement('canvas'); c.width = c.height = 64;
+    var g = c.getContext('2d');
+    var FLORETS = [
+      [32, 22, 7.4], [22, 33, 6.0], [42, 33, 6.2], [27, 44, 5.0],
+      [39, 45, 5.4], [32, 33, 4.4], [46, 22, 4.2], [18, 22, 4.0]
+    ];
+    for (var f = 0; f < FLORETS.length; f++) {
+      var cx = FLORETS[f][0], cy = FLORETS[f][1], r = FLORETS[f][2];
+      g.save(); g.translate(cx, cy); g.rotate(f * 1.31);
+      for (var p = 0; p < 5; p++) {
+        g.save(); g.rotate((p / 5) * TAU);
+        g.fillStyle = 'rgba(255,255,251,' + (0.72 + 0.28 * (r / 7.4)) + ')';
+        g.beginPath(); g.ellipse(0, -r * 0.55, r * 0.34, r * 0.55, 0, 0, TAU); g.fill();
+        g.restore();
+      }
+      g.fillStyle = '#f0e7bd';
+      g.beginPath(); g.arc(0, 0, r * 0.24, 0, TAU); g.fill();
+      g.restore();
+    }
+    flowerTex = new THREE.CanvasTexture(c);
+    if ('sRGBEncoding' in THREE) flowerTex.encoding = THREE.sRGBEncoding;
+    flowerTex.minFilter = THREE.LinearMipmapLinearFilter;
+    flowerTex.generateMipmaps = true;
+    return flowerTex;
+  }
+
+  function flowerMaterial(cfg) {
+    return new THREE.ShaderMaterial({
+      uniforms: cfg.uniforms,
+      transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      vertexShader: WIND_GLSL + [
+        'attribute vec3 iPos;',
+        'attribute vec2 iRnd;',
+        'uniform float uBoxH;',
+        'varying vec2 vUv; varying float vH; varying vec3 vL; varying vec3 vW;',
+        'void main(){',
+        '  vUv = uv;',
+        '  vec3 p = iPos + windOffset(iPos) * 1.6;',
+        '  p += vec3(sin(uTime * 1.5 + iRnd.y * 6.28), 0.0, 0.0) * 0.020 * uWind;',
+        '  vL = p;',
+        '  vH = clamp(p.y / uBoxH + 0.5, 0.0, 1.0);',
+        /* Billboard: offset the quad in VIEW space so it always faces the lens.
+           The offset has to be converted out of the group\'s local scale first —
+           the modelView transform has already been applied to the anchor. */
+        '  vW = (modelMatrix * vec4(p, 1.0)).xyz;',
+        '  vec4 mv = modelViewMatrix * vec4(p, 1.0);',
+        '  float ws = length(modelMatrix[0].xyz);',
+        '  mv.xy += position.xy * iRnd.x * ws;',
+        '  gl_Position = projectionMatrix * mv;',
+        '}'
+      ].join('\n'),
+      fragmentShader: LIGHT_GLSL + [
+        'precision highp float;',
+        'uniform sampler2D uMap;',
+        'uniform float uAlpha; uniform float uBoxH;',
+        'varying vec2 vUv; varying float vH; varying vec3 vL; varying vec3 vW;',
+        'void main(){',
+        '  if (unscanned(vW, 520.0)) discard;',
+        '  vec4 t = texture2D(uMap, vUv);',
+        '  if (t.a < 0.14) discard;',
+        '  vec3 col = t.rgb * t.rgb * (uKeyCol * 0.62 + uAmbCol * 0.9);',
+        '  gl_FragColor = vec4(aerial(col, vH), t.a * uAlpha * maskAt(vL, uBoxH));',
+        '  #include <tonemapping_fragment>',
+        '  #include <encodings_fragment>',
+        '}'
+      ].join('\n')
+    });
+  }
+
+  /* ================================================================== *
+   * assembly
+   * ================================================================== */
+  var uTime  = { value: 0 };
+  var uWind  = { value: REDUCED ? 0.0 : 1.0 };
+  var uMouseNear = { value: new THREE.Vector3(9999, 9999, 9999) };
+  var uMouseFar  = { value: new THREE.Vector3(9999, 9999, 9999) };
+  /* the survey pulse — shared by every material so one write moves them all */
+  var uScanO  = { value: new THREE.Vector3(-900, -260, 240) };
+  var uScanR  = { value: 0 };
+  var uScanOn = { value: 0 };
+  var uWire   = { value: 0 };
+
+  var KEY  = new THREE.Vector3(-0.30, 0.92, 0.28).normalize();
+  var FILL = new THREE.Vector3( 0.12, -0.86, 0.50).normalize();
+
+  function lightUniforms(extra) {
+    var u = {
+      uTime: uTime, uWind: uWind,
+      uKeyDir:  { value: KEY.clone() },
+      uKeyCol:  { value: new THREE.Color(1.14, 1.06, 0.88) },
+      uFillDir: { value: FILL.clone() },
+      /* the pale pool on the floor of the hero, bouncing back up */
+      uFillCol: { value: new THREE.Color(0.78, 0.78, 0.62) },
+      uAmbCol:  { value: new THREE.Color(0.086, 0.090, 0.080) },
+      /* Aerial perspective goes toward LIT air, not toward the background:
+         the far ridge in the reference is paler than the page behind it, and
+         so are the near crowns. Keep the amount small on the near root or the
+         moss greys out (its saturation is the first thing to go). */
+      uHazeCol: { value: new THREE.Color(0.176, 0.195, 0.145) },
+      uHaze:    { value: 0.14 },
+      uHazeLift:{ value: 0.20 },
+      uFog:     { value: 0.0 },
+      uAlpha:   { value: 1.0 },
+      uBoxH:    { value: BOXW / ARCH.aspect },
+      uMask:    { value: new THREE.Vector4(0, 1, 0, 1) },
+      uMaskOn:  { value: 0 },
+      uScanO:   uScanO,
+      uScanR:   uScanR,
+      uScanOn:  uScanOn,
+      uMouse:   { value: uMouseNear.value },
+      uMouseR:  { value: 1.5 }
+    };
+    for (var k in extra) if (extra.hasOwnProperty(k)) u[k] = extra[k];
+    return u;
+  }
