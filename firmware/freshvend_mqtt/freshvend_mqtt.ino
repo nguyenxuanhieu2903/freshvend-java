@@ -411,3 +411,88 @@ void reconnectMqtt() {
 // ================================================================
 // SETUP
 // ================================================================
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+
+  Serial.println("\n========================================================");
+  Serial.println("  FRESHVEND - ESP32-C3 SUPER MINI FIRMWARE (MQTT TLS)   ");
+  Serial.println("  Machine ID: " MACHINE_ID " | Broker: EMQX Cloud       ");
+  Serial.println("========================================================");
+
+  // Mở bộ nhớ NVS Flash
+  preferences.begin("freshvend-wifi", false);
+
+  // Cấu hình PWM cho ESP32-C3
+  ESP32PWM::allocateTimer(0);
+  ESP32PWM::allocateTimer(1);
+  ESP32PWM::allocateTimer(2);
+  ESP32PWM::allocateTimer(3);
+
+  servo1.setPeriodHertz(50);
+  servo2.setPeriodHertz(50);
+  servo3.setPeriodHertz(50);
+
+  servo1.attach(SERVO1_PIN, 500, 2400);
+  servo2.attach(SERVO2_PIN, 500, 2400);
+  servo3.attach(SERVO3_PIN, 500, 2400);
+
+  stopAllServos();
+
+  // Bỏ qua xác thực CA Certificate đối với TLS trong giai đoạn thử nghiệm prototype
+  secureClient.setInsecure();
+
+  // Cấu hình MQTT Client
+  mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
+  mqttClient.setCallback(onMqttMessage);
+  mqttClient.setBufferSize(1024); // Đảm bảo buffer đủ chứa payload JSON UUID
+
+  // Kết nối Wi-Fi
+  connectWiFi();
+}
+
+// ================================================================
+// LOOP (VÒNG LẶP CHÍNH HOÀN TOÀN NON-BLOCKING)
+// ================================================================
+void loop() {
+  // 1. Duy trì kết nối Wi-Fi (Thu lai sau moi 10 giay, tranh bi spam gay ra loi 'sta is connecting')
+  if (WiFi.status() != WL_CONNECTED) {
+    if (millis() - lastWifiRetry >= 10000) {
+      lastWifiRetry = millis();
+      connectWiFi();
+    }
+    return; // Khi chua co WiFi thi chua the ket noi MQTT
+  }
+
+  // 2. Duy trì kết nối MQTT
+  if (!mqttClient.connected()) {
+    reconnectMqtt();
+  }
+  mqttClient.loop();
+
+  // 3. Quản lý dừng động cơ sau khi hết thời gian chạy
+  if (isExecuting && millis() >= motorStopTime) {
+    stopMotor(executingSlot);
+    Serial.printf("[MOTOR] Slot %d hoan thanh chu ky nhan hang!\n", executingSlot);
+
+    // Gửi sự kiện DISPENSE_RESULT thành công
+    publishDispenseResult(currentCommandId, currentOrderId, executingSlot, "SUCCESS");
+
+    // Lưu commandId vào NVS để chống lặp
+    preferences.putString("lastCmd", currentCommandId);
+
+    // Trả cờ bận về false
+    isExecuting = false;
+    executingSlot = -1;
+    currentCommandId = "";
+    currentOrderId = "";
+  }
+
+  // 4. Phát Heartbeat định kỳ mỗi 30 giây
+  if (millis() - lastHeartbeatTime >= HEARTBEAT_INTERVAL_MS) {
+    lastHeartbeatTime = millis();
+    if (mqttClient.connected()) {
+      publishHeartbeat();
+    }
+  }
+}
